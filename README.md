@@ -1,4 +1,4 @@
-# $\mathcal{F}\left(R_{xx}\right)$
+# 𝓕(Rₓₓ)
 
 A library to produce and analyze weather radar moments and spectra from I/Q data.
 
