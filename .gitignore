@@ -15,7 +15,7 @@ test_*
 ._*
 
 #setuptools builds
-./dist/
-./build/
+dist
+build
 *.egg-info
 *.egg-info/
