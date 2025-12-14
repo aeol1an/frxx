@@ -8,7 +8,7 @@ version = "0.1"
 description = "Utils to process and visualize I/Q data from a weather radar."
 readme = "README.md"
 requires-python = ">=3.10"
-license = "GPL-3.0-or-later"
+license = "LGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [
   { name="Ameya Naik" },
