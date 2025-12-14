@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frxx"
+version = "0.1"
+description = "Utils to process and visualize I/Q data from a weather radar."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+  { name="Ameya Naik" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pandas",
+    "pytz",
+    "netCDF4",
+    "requests",
+    "arm_pyart",
+    "numba",
+    "rocket-fft",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/aeol1an/frxx"
+"Bug Tracker" = "https://github.com/aeol1an/frxx/issues"

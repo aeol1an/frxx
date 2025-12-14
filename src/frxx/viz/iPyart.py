@@ -18,15 +18,20 @@ def getPlottableFields(nyquistVel: float, negDealias: int = 0, posDealias: int =
             'title': 'Radial Velocity',
             'norm': TwoSlopeNorm(vmin=-nyquistVel - 2*negDealias*nyquistVel, vcenter=0, vmax=nyquistVel + 2*posDealias*nyquistVel)
         },
+        'CORVEL': {
+            'cmap': 'pyart_Carbone42',
+            'title': 'Radial Velocity',
+            'norm': Normalize(vmin=-100, vmax=100)
+        },
         'ZDR': {
             'cmap': 'pyart_Carbone42',
             'title': 'Differential Reflectivity',
             'norm': Normalize(vmin=-5, vmax=8)
         },
         'RHOHV': {
-            'cmap': 'pyart_Carbone42',
+            'cmap': cmaps.rmap(256),
             'title': 'Correlation Coefficient',
-            'norm': Normalize(vmin=0.1, vmax=1.05)
+            'norm': Normalize(vmin=0.2, vmax=1.05)
         } 
     }
 
@@ -48,7 +53,7 @@ def enableKeyboardShortcuts():
 
 class iPyart:
     def __init__(self, cfradDir, startFilenum):
-        if matplotlib.get_backend() != 'TkAgg':
+        if matplotlib.get_backend().lower() != 'tkagg':
             raise RuntimeError("Cannot run interactive display with current backend. "
                                "Switch to Tkagg with 'matplotlib.use(backend=\"TkAgg\")' "
                                "or if using jupyter, '%matplotlib tk.'")
@@ -56,7 +61,11 @@ class iPyart:
         self.maxFiles = len(self.files)
         self.curFileNum = startFilenum
         self.curFileName = self.files[self.curFileNum].name
-        self.currentRadarObj = pyart.io.read(self.files[self.curFileNum])
+        dealiasPath = self.files[self.curFileNum].parent/"dealias"/self.curFileName
+        if dealiasPath.exists():
+            self.currentRadarObj = pyart.io.read(dealiasPath)
+        else:
+            self.currentRadarObj = pyart.io.read(self.files[self.curFileNum])
 
         self.singleFileMode = False
         self.singleFieldMode = False
@@ -106,14 +115,27 @@ class iPyart:
         
         self.curFileNum += direction
         self.curFileName = self.files[self.curFileNum].name
-        self.currentRadarObj = pyart.io.read(self.files[self.curFileNum])
-        fieldPlotting = getPlottableFields(self.currentRadarObj.get_nyquist_vel(0))[self.currentField]
+        
+        dealiasPath = self.files[self.curFileNum].parent/"dealias"/self.curFileName
+        if dealiasPath.exists():
+            self.currentRadarObj = pyart.io.read(dealiasPath)
+        else:
+            self.currentRadarObj = pyart.io.read(self.files[self.curFileNum])
+        
+        if (self.currentField == 'VEL'):
+            if ('CORVEL' in self.currentRadarObj.fields.keys()):
+                field = 'CORVEL'
+            else:
+                field = 'VEL'
+        else:
+            field = self.currentField
+        fieldPlotting = getPlottableFields(self.currentRadarObj.get_nyquist_vel(0))[field]
         norm = fieldPlotting['norm']
         cmap = fieldPlotting['cmap']
 
         self.radarDisplay = pyart.graph.RadarDisplay(self.currentRadarObj)
         self.radarDisplay.set_limits(xlim=current_xlims, ylim=current_ylims)
-        self.radarDisplay.plot_ppi(self.currentField, norm=norm, cmap=cmap)
+        self.radarDisplay.plot_ppi(field, norm=norm, cmap=cmap)
 
         if isinstance(self.customTitle, str):
             plt.suptitle(self.customTitle)
@@ -153,6 +175,9 @@ class iPyart:
         current_ylims = self.radarDisplay.plots[0].axes.get_ylim()
         plt.clf()
         self.currentField = field
+        
+        if (self.currentField == 'VEL') and ('CORVEL' in self.currentRadarObj.fields.keys()):
+            field = 'CORVEL'
         fieldPlotting = getPlottableFields(self.currentRadarObj.get_nyquist_vel(0))[field]
         norm = fieldPlotting['norm']
         cmap = fieldPlotting['cmap']
@@ -164,7 +189,7 @@ class iPyart:
         if isinstance(self.customTitle, str):
             plt.suptitle(self.customTitle)
 
-    def open(self, initFieldName = 'DBZ'):
+    def open(self, initFieldName = 'DBZ', block=True):
         if self.isShowing:
             raise RuntimeError("Plot is already showing.")
         validInitFields = ['DBZ', 'VEL', 'ZDR', 'RHOHV']
@@ -199,7 +224,7 @@ class iPyart:
         if isinstance(self.customTitle, str):
             plt.suptitle(self.customTitle)
 
-        plt.show(block=True)
+        plt.show(block=block)
 
     def _on_close(self, event=None):
         enableKeyboardShortcuts()

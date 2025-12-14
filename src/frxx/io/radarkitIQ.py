@@ -2,7 +2,7 @@ import numpy as np
 import struct
 
 class rkcfile:
-    def __init__(self, filename, maxPulse = None, posFilename = None):
+    def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
         
         #------Class Properties---------------------------------------------------------------------
         self.constants = {
@@ -43,7 +43,8 @@ class rkcfile:
         
         
         #------Set Filename Property----------------------------------------------------------------
-        print(f"Filename: {filename}")
+        if verbose:
+            print(f"Filename: {filename}")
         self.filename = filename
         #-------------------------------------------------------------------------------------------
         
@@ -58,12 +59,13 @@ class rkcfile:
             file.read(self.constants['RKName']))[0].decode()\
             .replace('\x00', ' ').strip()
         self.header['buildNo'] = struct.unpack('I', file.read(4))[0]
-        print(f"preface = {self.header['preface']} "
-              f"  buildNo = {self.header['buildNo']}")
+        if verbose:
+            print(f"preface = {self.header['preface']} "
+                f"  buildNo = {self.header['buildNo']}")
         #-------------------------------------------------------------------------------------------
         
         
-        #------If build 5, get dataType-------------------------------------------------------------
+        #------If build 5 or higher, get dataType---------------------------------------------------
         if self.header['buildNo'] >= 5:
             self.header['dataType'] = struct.unpack('B', file.read(1))[0]
         #-------------------------------------------------------------------------------------------
@@ -161,6 +163,54 @@ class rkcfile:
         
         
         #------Get config and waveforms-------------------------------------------------------------
+        #Build 8 config
+        if self.header['buildNo'] == 8:
+            offset = self.constants['RKRadarDescOffset'] +\
+                self.constants['RKRadarDesc']
+            c = np.memmap(self.filename, mode='r', offset=offset, shape=(1,),
+                dtype=np.dtype([
+                    ('i', 'uint64'),
+                    ('volumeIndex', 'uint64'),
+                    ('sweepIndex', 'uint64'),
+                    ('sweepElevation', 'f4'),
+                    ('sweepAzimuth', 'f4'),
+                    ('startMarker', 'uint32'),
+                    ('prt', 'f4', (self.constants['RKMaxFilterCount'],)),
+                    ('pw', 'f4', (self.constants['RKMaxFilterCount'],)),
+                    ('pulseGateCount', 'uint32'),
+                    ('pulseGateSize', 'f4'),
+                    ('transitionGateCount', 'uint32'),
+                    ('ringFilterGateCount', 'uint32'),
+                    ('waveformId', 'uint32', (self.constants['RKMaxFilterCount'],)),
+                    ('noise', 'f4', (2,)),
+                    ('systemZCal', 'f4', (2,)),
+                    ('systemDCal', 'f4'),
+                    ('systemPCal', 'f4'),
+                    ('ZCal', 'f4', (2,self.constants['RKMaxFilterCount'])),
+                    ('DCal', 'f4', (self.constants['RKMaxFilterCount'],)),
+                    ('PCal', 'f4', (self.constants['RKMaxFilterCount'],)),
+                    ('SNRThreshold', 'f4'),
+                    ('SQIThreshold', 'f4'),
+                    ('waveformName', 'uint8', (self.constants['RKName'],)),
+                    ('trash', 'uint64', (3,)),
+                    ('momentMethod', 'uint8'),
+                    ('userIntegerParameters', 'uint32', (8,)),
+                    ('userFloatParameters', 'f4', (8,)),
+                    ('vcpDefinition', 'uint8', (480,))
+                ])
+            )
+            config = {field: c[0][field] for field in c[0].dtype.names}
+            config['ZCal'] = config['ZCal'].T
+            config['waveformName'] = ''\
+                .join(chr(num) for num in config['waveformName'])\
+                .replace('\x00', ' ').strip()
+            config['vcpDefinition'] = ''\
+                .join(chr(num) for num in config['vcpDefinition'])\
+                .replace('\x00', ' ').strip()
+            del config['trash']
+            self.header['config'] = config
+            
+        
         #Build 6/7 config
         if self.header['buildNo'] == 6 or self.header['buildNo'] == 7:
             offset = self.constants['RKRadarDescOffset'] +\
@@ -189,7 +239,8 @@ class rkcfile:
                     ('SQIThreshold', 'f4'),
                     ('waveformName', 'uint8', (self.constants['RKName'],)),
                     ('trash', 'uint64', (2,)),
-                    ('vcpDefinition', 'uint8', (self.constants['RKMaximumCommandLength'],))
+                    ('momentMethod', 'uint8'),
+                    ('vcpDefinition', 'uint8', (512,))
                 ])
             )
             config = {field: c[0][field] for field in c[0].dtype.names}
@@ -203,7 +254,8 @@ class rkcfile:
             del config['trash']
             self.header['config'] = config
             
-        #Build 6/7 Waveforms
+        #Build 6/7/8 Waveforms
+        if self.header['buildNo'] >= 6 and self.header['buildNo'] <= 8:
             offset = self.constants['RKFileHeader']
             w = np.memmap(self.filename, mode='r', offset=offset, shape=(1,),
                 dtype=np.dtype([
@@ -477,21 +529,58 @@ class rkcfile:
         gateCount = pulseStart[1]
         downSampledGateCount = pulseStart[2]
         pulseDataSize = file.seek(0, 2) - offset
-        print(f"Pulse data size: {pulseDataSize}")
+        if verbose:
+            print(f"Pulse data size: {pulseDataSize}")
         file.close()
-        print(f"gateCount = {gateCount}   capacity = {capacity} "
-              f"  downSampledGateCount = {downSampledGateCount}")
+        if verbose:
+            print(f"gateCount = {gateCount}   capacity = {capacity} "
+                f"  downSampledGateCount = {downSampledGateCount}")
         
         #Dimensions
-        print(f"data offset = {offset}")
-        if maxPulse != None:
-            print(f"Reading {maxPulse} pulses ...")
-        else:
-            print("Reading pulses ...")
+        if verbose:
+            print(f"data offset = {offset}")
+            if maxPulse != None:
+                print(f"Reading {maxPulse} pulses ...")
+            else:
+                print("Reading pulses ...")
         
         #Read all pulses
-        if self.header['buildNo'] == 7:
-            if self.header['dataType'] == 2:
+        if self.header['buildNo'] == 7 or self.header['buildNo'] == 8:
+            if self.header['dataType'] == 1:
+                #Raw I/Q straight from the transceiver
+                IQDtype = np.dtype([
+                    ('i', 'uint64'),
+                    ('n', 'uint64'),
+                    ('t', 'uint64'),
+                    ('s', 'uint32'),
+                    ('capacity', 'uint32'),
+                    ('gateCount', 'uint32'),
+                    ('downSampledGateCount', 'uint32'),
+                    ('marker', 'uint32'),
+                    ('pulseWidthSampleCount', 'uint32'),
+                    ('time_tv_sec', 'uint64'),
+                    ('time_tv_usec', 'uint64'),
+                    ('timeDouble', 'f8'),
+                    ('rawAzimuth', 'uint8', (4,)),
+                    ('rawElevation', 'uint8', (4,)),
+                    ('configIndex', 'uint16'),
+                    ('configSubIndex', 'uint16'),
+                    ('positionIndex', 'uint32'),
+                    ('gateSizeMeters', 'f4'),
+                    ('elevationDegrees', 'f4'),
+                    ('azimuthDegrees', 'f4'),
+                    ('elevationVelocityDegreesPerSecond', 'f4'),
+                    ('azimuthVelocityDegreesPerSecond', 'f4'),
+                    ('padding', 'uint8', (84,)),
+                    ('iq', 'int16', (2, gateCount, 2))
+                ])
+                numPulses = pulseDataSize // IQDtype.itemsize
+                if verbose:
+                    print(f"Number of pulses: {numPulses}")
+                m = np.memmap(self.filename, mode='r', offset=offset, 
+                    shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
+                )
+            else:
                 #Compressed I/Q
                 IQDtype = np.dtype([
                     ('i', 'uint64'),
@@ -520,11 +609,13 @@ class rkcfile:
                     ('iq', 'f4', (2, downSampledGateCount, 2))
                 ])
                 numPulses = pulseDataSize // IQDtype.itemsize
-                print(f"Number of pulses: {numPulses}")
+                if verbose:
+                    print(f"Number of pulses: {numPulses}")
                 m = np.memmap(self.filename, mode='r', offset=offset, 
-                shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
+                    shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
                 )
-            else:
+        else:
+            if self.header['dataType'] == 1:
                 #Raw I/Q straight from the transceiver
                 IQDtype = np.dtype([
                     ('i', 'uint64'),
@@ -543,22 +634,21 @@ class rkcfile:
                     ('rawElevation', 'uint8', (4,)),
                     ('configIndex', 'uint16'),
                     ('configSubIndex', 'uint16'),
-                    ('positionIndex', 'uint32'),
+                    ('azimuthBinIndex', 'uint16'),
                     ('gateSizeMeters', 'f4'),
                     ('elevationDegrees', 'f4'),
                     ('azimuthDegrees', 'f4'),
                     ('elevationVelocityDegreesPerSecond', 'f4'),
                     ('azimuthVelocityDegreesPerSecond', 'f4'),
-                    ('padding', 'uint8', (84,)),
                     ('iq', 'int16', (2, gateCount, 2))
                 ])
                 numPulses = pulseDataSize // IQDtype.itemsize
-                print(f"Number of pulses: {numPulses}")
+                if verbose:
+                    print(f"Number of pulses: {numPulses}")
                 m = np.memmap(self.filename, mode='r', offset=offset, 
                     shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
                 )
-        else:
-            if self.header['dataType'] == 2:
+            else:
                 #Compressed I/Q (non build 7)
                 IQDtype = np.dtype([
                     ('i', 'uint64'),
@@ -586,39 +676,8 @@ class rkcfile:
                     ('iq', 'f4', (2,downSampledGateCount,2)),
                 ])
                 numPulses = pulseDataSize // IQDtype.itemsize
-                print(f"Number of pulses: {numPulses}")
-                m = np.memmap(self.filename, mode='r', offset=offset, 
-                    shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
-                )
-            else:
-                #Raw I/Q straight from the transceiver
-                IQDtype = np.dtype([
-                    ('i', 'uint64'),
-                    ('n', 'uint64'),
-                    ('t', 'uint64'),
-                    ('s', 'uint32'),
-                    ('capacity', 'uint32'),
-                    ('gateCount', 'uint32'),
-                    ('downSampledGateCount', 'uint32'),
-                    ('marker', 'uint32'),
-                    ('pulseWidthSampleCount', 'uint32'),
-                    ('time_tv_sec', 'uint64'),
-                    ('time_tv_usec', 'uint64'),
-                    ('timeDouble', 'f8'),
-                    ('rawAzimuth', 'uint8', (4,)),
-                    ('rawElevation', 'uint8', (4,)),
-                    ('configIndex', 'uint16'),
-                    ('configSubIndex', 'uint16'),
-                    ('azimuthBinIndex', 'uint16'),
-                    ('gateSizeMeters', 'f4'),
-                    ('elevationDegrees', 'f4'),
-                    ('azimuthDegrees', 'f4'),
-                    ('elevationVelocityDegreesPerSecond', 'f4'),
-                    ('azimuthVelocityDegreesPerSecond', 'f4'),
-                    ('iq', 'int16', (2, gateCount, 2))
-                ])
-                numPulses = pulseDataSize // IQDtype.itemsize
-                print(f"Number of pulses: {numPulses}")
+                if verbose:
+                    print(f"Number of pulses: {numPulses}")
                 m = np.memmap(self.filename, mode='r', offset=offset, 
                     shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
                 )
