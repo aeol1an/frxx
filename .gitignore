@@ -1,6 +1,21 @@
+#vscode stuff
 .vscode/
+
+#python artifact
 __pycache__/
+
+#dont commit testing files
 test_*
+
+#dno data uploaded
 *.nc
+
+#macos artifacts
 .DS_store
 ._*
+
+#setuptools builds
+./dist/
+./build/
+*.egg-info
+*.egg-info/
