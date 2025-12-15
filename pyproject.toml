@@ -24,10 +24,12 @@ dependencies = [
     "pandas",
     "pytz",
     "netCDF4",
+    "xarray",
     "requests",
     "arm_pyart",
     "numba",
     "rocket-fft",
+    "frxx-view"
 ]
 
 [project.urls]
