@@ -29,7 +29,6 @@ dependencies = [
     "arm_pyart",
     "numba",
     "rocket-fft",
-    "frxx-view"
 ]
 
 [project.urls]
