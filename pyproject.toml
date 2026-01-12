@@ -31,6 +31,9 @@ dependencies = [
     "rocket-fft",
 ]
 
+[project.scripts]
+frxx = "frxx.cli:main"
+
 [project.urls]
 "Homepage" = "https://github.com/aeol1an/frxx"
 "Bug Tracker" = "https://github.com/aeol1an/frxx/issues"

@@ -1,6 +1,8 @@
 import numpy as np
 import struct
 
+def readIQ(path: str | Path) -> 
+
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
         
