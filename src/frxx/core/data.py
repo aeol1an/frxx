@@ -50,7 +50,6 @@ class frxxData(ABC):
 			"pulse_width": False,
 			"prt": False,
 			"wavelength": False,
-			"data": False
 		}
 
 		self.optionalBools = {
@@ -453,10 +452,8 @@ class frxxData(ABC):
 	@abstractmethod
 	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
 		pass
-	def _updateDataCounts(self):
+	def _incDataCounts(self):
 		self.numDataVars += 1
-		if self.numDataVars != 0:
-			self.requiredBools["data"] = True
 	def _constructDataArray(self, data: NDArray, dims: List[str], attrs, encoding) -> xr.DataArray:
 		da = xr.DataArray(
 			data = data,
@@ -568,12 +565,6 @@ class frxxData(ABC):
 		vars = ["wavelength", "nyquist_velocity"]
 		self.requiredBools["wavelength"] = self._checkVars(vars)
 
-		#data
-		if self.numDataVars == 0:
-			self.requiredBools["data"] = False
-		else:
-			self.requiredBools["data"] = True
-
 	@abstractmethod
 	def validateSelf(self) -> bool:
 		pass
@@ -581,9 +572,6 @@ class frxxData(ABC):
 		requiredBools = all(self.requiredBools.values())
 		if not requiredBools:
 			print("Some required bools have not been set.")
-			return False
-		elif self.numDataVars == 0:
-			print("No data variables yet.")
 			return False
 		return True
 		

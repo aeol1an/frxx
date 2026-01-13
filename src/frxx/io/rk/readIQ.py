@@ -1,7 +1,13 @@
+from pathlib import Path
+
 import numpy as np
 import struct
 
-def readIQ(path: str | Path) -> 
+from typing import Union
+from numpy.typing import NDArray
+
+from ...core import IQ
+from ...core.data import _FILL_VALUES
 
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
@@ -40,7 +46,7 @@ class rkcfile:
             'waveform': []
         }
         
-        self.pulses = []
+        self.pulses: Union[np.memmap, NDArray]
         #-------------------------------------------------------------------------------------------
         
         
@@ -118,7 +124,7 @@ class rkcfile:
                     ('dataPath_raw', 'uint8', (self.constants['RKMaximumFolderPathLength'],))
                 ])
             )
-        elif self.header['buildNo'] == 1:
+        else:
             h = np.memmap(self.filename, mode='r',
                 offset=self.constants['RKName'] + 4, shape=(1,),
                 dtype=np.dtype([
@@ -166,7 +172,7 @@ class rkcfile:
         
         #------Get config and waveforms-------------------------------------------------------------
         #Build 8 config
-        if self.header['buildNo'] == 8:
+        if self.header['buildNo'] >= 8:
             offset = self.constants['RKRadarDescOffset'] +\
                 self.constants['RKRadarDesc']
             c = np.memmap(self.filename, mode='r', offset=offset, shape=(1,),
@@ -339,7 +345,7 @@ class rkcfile:
                 
         #Build 5 Config and Waveforms
         elif self.header['buildNo'] == 5:
-            offset = self['constants']['RKName'] + 4 + self['constants']['RKRadarDesc']
+            offset = self.constants['RKName'] + 4 + self.constants['RKRadarDesc']
             c = np.memmap(self.filename, mode='r', offset=offset, shape=(1,),
                 dtype=np.dtype([
                     ('i', 'uint64'),
@@ -490,7 +496,7 @@ class rkcfile:
             offset = self.constants['RKFileHeader']
             
         #Build 1 Config and Waveforms
-        elif self.header['buildNo'] == 1:
+        else:
             c = np.memmap(self.filename, mode='r',
                 offset=self.constants['RKName'] + 4 + self.constants['RKRadarDesc'], shape=(1,),
                 dtype = np.dtype([
@@ -683,8 +689,8 @@ class rkcfile:
                 m = np.memmap(self.filename, mode='r', offset=offset, 
                     shape=(numPulses,) if maxPulse == None else (maxPulse,), dtype = IQDtype
                 )
-        self.pulses = np.array(m)
-        self.pulses['iq'] = self.pulses['iq'].transpose(0, 3, 2, 1)
+        #OG is time, h/v, range, iq
+        self.pulses = m
         #-------------------------------------------------------------------------------------------
         
         
@@ -709,3 +715,113 @@ class rkcfile:
     
     def azArray(self):
         return self.pulses['azimuthDegrees']
+    
+def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
+    if "tzStr" not in kwargs:
+        raise TypeError("Needed 'tzStr' kwarg. It's probably 'US/Central'.")
+    else:
+        tzStr = kwargs["tzStr"]
+
+    if "instrumentMame" not in kwargs:
+        instrName = "RaXPol"
+    else:
+        instrName = kwargs["instrumentName"]
+
+    if "institution" not in kwargs:
+        institution = "The University of Oklahoma"
+    else:
+        institution = kwargs["institution"]
+
+    ret = IQ()
+    rkc = rkcfile(path, verbose=False)
+
+    if "correctedLat" in kwargs:
+        rkc.header['desc']['latitude'] = kwargs["correctedLat"]
+    if "correctedLon" in kwargs:
+        rkc.header['desc']['longitude'] = kwargs["correctedLon"]
+
+    #get the iq to page everything
+    if copy:
+        iq = np.ascontiguousarray(rkc.pulses["iq"].transpose(1, 2, 0, 3))
+    else:
+        iq = rkc.pulses["iq"].transpose(1, 2, 0, 3)
+
+    timeDoubleArr = (
+        rkc.pulses['time_tv_sec'] +
+        rkc.pulses['time_tv_usec']/1000000.
+    ).astype(np.float64)
+
+    if rkc.header['buildNo'] >= 4:
+        if rkc.header['dataType'] == 'raw':
+            dr = rkc.header['config']['pulseGateSize']
+        elif rkc.header['dataType'] == 'compressed':
+            dr = rkc.header['desc']['pulseToRayRatio'] * rkc.header['config']['pulseGateSize']
+        else:
+            print("Inconsistency detected. This should not happen.")
+            dr = 30.
+    else:
+        dr = 30.
+
+    pulse1 = rkc.pulseToDict(0)
+
+    #remember iq is h/v, range, iq
+    ng = pulse1["iq"].shape[1]
+    nRay = len(rkc.pulses)
+    rr = (dr/2) + (np.arange(0,ng) * dr)
+
+    pulseWidthArr = np.tile(rkc.header['config']['pw'], (nRay,)).astype(np.float32)
+    prtArr = np.tile(rkc.header['config']['prt'], (nRay,)).astype(np.float32)
+    wavelengthArr = np.tile(rkc.header['desc']['wavelength'], (nRay,)).astype(np.float32)
+
+    ret.setInstrument(
+        name = instrName,
+        institution = institution,
+        source = rkc.header["preface"]
+    )
+    ret.setVolume(0)
+    ret.setTime(timeDoubleArr, tzStr)
+    ret.setSweep(0)
+    ret.setRange(rr.astype(np.float32), True)
+    ret.setPosition(
+        rkc.header['desc']['latitude'], 
+        rkc.header['desc']['longitude'], 
+        rkc.header["desc"]["radarHeight"]
+    )
+    ret.setScanningStrategy("ppi", rkc.header["config"]["sweepElevation"])
+    ret.setAzimuth(rkc.azArray().astype(np.float32))
+    ret.setElevation(rkc.elArray().astype(np.float32))
+    ret.setPulseWidthSeconds(pulseWidthArr)
+    ret.setPrtSeconds(prtArr)
+    ret.setWavelengthMeters(wavelengthArr)
+
+    ret.setPol(2)
+    ret.setNoisedB(rkc.header["config"]["noise"])
+    ret.setCal(
+        rkc.header["config"]["systemZCal"], 
+        rkc.header["config"]["systemDCal"],
+        rkc.header["config"]["systemPCal"]
+    )
+
+    if copy:
+        iq = np.ascontiguousarray(rkc.pulses["iq"].transpose(1, 2, 0, 3))
+    else:
+        iq = rkc.pulses["iq"].transpose(1, 2, 0, 3)
+
+    ret.addDataField(
+        'iq',
+        data = iq,
+        dims = ["pol", "range", "time", "iqdim"],
+        attrs = {
+            "units": "arbitrary_raw_transciever_units",
+            "long_name": "raw_in-phase/quadrature_returns",
+        },
+        encoding = {
+            "dtype": "float32",
+            "_FillValue": _FILL_VALUES["float32"]
+        }
+    )
+
+    if not ret.validateSelf():
+        raise RuntimeError("Structure wasn't able to validate. Check bools.")
+
+    return ret

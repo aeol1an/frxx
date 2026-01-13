@@ -181,8 +181,11 @@ class raxpolrkc(rkcfile):
         az = pulses['azimuthDegrees']
         el = pulses['elevationDegrees']
         
+        
         pulses = pulses['iq'].transpose((1,2,3,0))
         pulses = pulses[0,:,:,:] + 1.j*pulses[1,:,:,:]
+
+        #reorder to range, time, h/v
         pulses = pulses.transpose((0,2,1)).astype(np.complex128)
 
         c = 299792458.0

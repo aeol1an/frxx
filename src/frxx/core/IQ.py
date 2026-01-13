@@ -77,7 +77,7 @@ class IQ(frxxData):
 			"_FillValue": _FILL_VALUES["float64"]
 		}
 
-		self.requiredBoolsIQ["noise"]
+		self.requiredBoolsIQ["noise"] = True
 
 	def setCal(self, Zcal_db: Union[NDArray[np.floating], Sequence[float]], Dcal_db: float | None = None, Pcal_deg: float | None = None):
 		if not self.requiredBoolsIQ["pol"]:
@@ -132,12 +132,17 @@ class IQ(frxxData):
 	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
 		if dims != ["pol", "range", "time", "iqdim"] or name != 'iq':
 			raise ValueError("Please only add iq data to this data structure!")
+		
+		if not all(self.requiredBoolsIQ.values()):
+			raise ValueError("Set all IQ object variables.")
+
 		self.ds["iq"] = self._constructDataArray(
 			data = data,
 			dims = dims,
 			attrs = attrs,
 			encoding = encoding
 		)
+		self._incDataCounts()
 
 	def constructFilename(self) -> str:
 		return super()._constructFilename("frxxIQ")
@@ -171,7 +176,7 @@ class IQ(frxxData):
 		base = super()._validateSelf()
 		if not base:
 			return False
-		if self.ds.attrs["frxx_data_type"] == 'IQ':
+		if not (self.ds.attrs["frxx_data_type"] == 'IQ'):
 			return False
 		if not all(self.requiredBoolsIQ.values()):
 			print("Some IQ specific required bools have not been set.")

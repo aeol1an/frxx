@@ -1,2 +1,1 @@
-from .raxpolCf import raxpolCf
-from .raxpolIQ import raxpolrkc
+from .rk.readIQ import rkcfile, readIQ
