@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from pathlib import Path
 
@@ -39,7 +39,6 @@ class frxxData(ABC):
 		self.requiredBools = {
 			#All of these are required true
 			"instrument_name": False,
-			"source": False, #radarkit
 			"volume": False,
 			"sweep": False,
 			"time": False,
@@ -50,7 +49,8 @@ class frxxData(ABC):
 			"elevation": False,
 			"pulse_width": False,
 			"prt": False,
-			"wavelength": False
+			"wavelength": False,
+			"data": False
 		}
 
 		self.optionalBools = {
@@ -61,9 +61,10 @@ class frxxData(ABC):
 
 		self.numDataVars = 0
 
-	def setInstrument(self, name: str, institution: str):
+	def setInstrument(self, name: str, institution: str, source: str):
 		self.ds.attrs["instrument_name"] = name
 		self.ds.attrs["institution"] = institution
+		self.ds.attrs["source"] = source
 		self.requiredBools["instrument_name"] = True
 
 	def setVolume(self, volNum: int = 0):
@@ -102,8 +103,8 @@ class frxxData(ABC):
 		
 		paddedStartTime = startTimeStr.replace('+00:00', 'Z') +\
 			(len(self.ds["string_length_32"]) - len(startTimeStr.replace('+00:00', 'Z')))*' '
-		paddedEndTime = startTimeStr.replace('+00:00', 'Z') +\
-			(len(self.ds["string_length_32"])- len(startTimeStr.replace('+00:00', 'Z')))*' '
+		paddedEndTime = endTimeStr.replace('+00:00', 'Z') +\
+			(len(self.ds["string_length_32"])- len(endTimeStr.replace('+00:00', 'Z')))*' '
 		
 		self.ds["time_coverage_start"] = xr.DataArray(
 			data = np.array([c for c in paddedStartTime], dtype="|S1"),
@@ -122,7 +123,7 @@ class frxxData(ABC):
 			dims = ["string_length_32"],
 			attrs = {
 				"standard_name": "data_volume_end_time_utc",
-				"comment": "ray times are relative to start time in secs",
+				"comment": "ray times are relative to start time in secondss",
 			},
 		)
 		self.ds["time_coverage_end"].encoding = {
@@ -147,7 +148,7 @@ class frxxData(ABC):
 		if not self.requiredBools["time"]:
 			raise RuntimeError("Need to call setTime before this.")
 		
-		self.ds = self.ds.assign_coords(sweep=np.arange(0))
+		self.ds = self.ds.assign_coords(sweep=np.arange(1))
 
 		self.ds["sweep_number"] = xr.DataArray(
 			data = np.array([sweepNum], dtype=np.int32),
@@ -340,7 +341,7 @@ class frxxData(ABC):
 			dims = ["time"],
 			attrs = {
 				"units": "degrees",
-				"long_name": "ray_elevtion_angle"
+				"long_name": "ray_elevation_angle"
 			}
 		)
 		self.ds["elevation"].encoding = {
@@ -450,9 +451,25 @@ class frxxData(ABC):
 		self.optionalBools["addtl_comments"] = True
 
 	@abstractmethod
-	def constructFilename(self):
+	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
 		pass
-	def _constructFilename(self, prefix: str):
+	def _updateDataCounts(self):
+		self.numDataVars += 1
+		if self.numDataVars != 0:
+			self.requiredBools["data"] = True
+	def _constructDataArray(self, data: NDArray, dims: List[str], attrs, encoding) -> xr.DataArray:
+		da = xr.DataArray(
+			data = data,
+			dims = dims,
+			attrs = attrs
+		)
+		da.encoding = encoding
+		return da
+
+	@abstractmethod
+	def constructFilename(self) -> str:
+		pass
+	def _constructFilename(self, prefix: str) -> str:
 		if not self.requiredBools["instrument_name"]:
 			raise RuntimeError("Instrument name has not been set yet.")
 		if not self.requiredBools["time"]:
@@ -469,12 +486,98 @@ class frxxData(ABC):
 		dt_start = datetime.fromisoformat(self.ds.attrs["start_datetime"]).astimezone(pytz.utc)
 		dt = dt_start + timedelta(seconds=self.ds["time"].values[index].item())
 
-		return dt.strftime('%m/%d/%Y %H:%M:$S Z')
+		return dt.strftime('%m/%d/%Y %H:%M:%S Z')
 
 	@abstractmethod
-	def validateSelf(self):
+	def checkRequiredFields(self):
 		pass
-	def _validateSelf(self):
+	def _checkAttrs(self, attrs: List[str], notEmpty: bool = True):
+		for attr in attrs:
+			if attr not in self.ds.attrs:
+				print(f"{attr} not in attributes.")
+				return False
+			elif notEmpty and self.ds.attrs[attr] == "":
+				return False
+		return True
+
+	def _checkVars(self, vars: List[str], notBad: bool = True):
+		for var in vars:
+			if var not in self.ds:
+				print(f"{var} either doesn't exist")
+				return False
+			elif notBad and not np.all(np.isfinite(self.ds[var].values)):
+				print(f"{var} has some nan or inf values.")
+				return False
+		return True
+	def _checkRequiredFields(self):
+		#setInstrumentName function
+		attrs = ["instrument_name", "institution", "source"]
+		self.requiredBools["instrument_name"] = self._checkAttrs(attrs)
+		
+		#setVolume function
+		vars = ["volume_number"]
+		self.requiredBools["volume"] = self._checkVars(vars)
+
+		#setTime function
+		attrs = ["time_coverage_start", "time_coverage_end", "start_datetime", "end_datetime"]
+		strVars = ["time_coverage_start", "time_coverage_end"]
+		vars = ["time"]
+		self.requiredBools["time"] = (
+			self._checkAttrs(attrs) 
+			and self._checkVars(strVars, False) 
+			and self._checkVars(vars)
+		)
+
+		#setSweep function
+		vars = ["sweep", "sweep_number", "sweep_start_ray_index", "sweep_end_ray_index"]
+		self.requiredBools["sweep"] = self._checkVars(vars)
+
+		#setRange function
+		vars = ["range"]
+		self.requiredBools["range"] = self._checkVars(vars)
+
+		#setPosition function
+		vars = ["latitude", "longitude", "altitude"]
+		self.requiredBools["position"] = self._checkVars(vars)
+
+		#setScanningStrategy function
+		strVars = ["sweep_mode"]
+		vars = ["fixed_angle"]
+		self.requiredBools["scanning_strategy"] = (
+			self._checkVars(strVars, False)
+			and self._checkVars(vars)
+		)
+
+		#setAzimuth function
+		vars = ["azimuth"]
+		self.requiredBools["azimuth"] = self._checkVars(vars)
+
+		#setElevation function
+		vars = ["elevation"]
+		self.requiredBools["elevation"] = self._checkVars(vars)
+
+		#setPulseWidth function
+		vars = ["pulse_width"]
+		self.requiredBools["pulse_width"] = self._checkVars(vars)
+
+		#setPrt function
+		vars = ["prt"]
+		self.requiredBools["prt"] = self._checkVars(vars)
+
+		#setWavelength function
+		vars = ["wavelength", "nyquist_velocity"]
+		self.requiredBools["wavelength"] = self._checkVars(vars)
+
+		#data
+		if self.numDataVars == 0:
+			self.requiredBools["data"] = False
+		else:
+			self.requiredBools["data"] = True
+
+	@abstractmethod
+	def validateSelf(self) -> bool:
+		pass
+	def _validateSelf(self) -> bool:
 		requiredBools = all(self.requiredBools.values())
 		if not requiredBools:
 			print("Some required bools have not been set.")
