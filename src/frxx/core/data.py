@@ -477,4 +477,10 @@ class frxxData(ABC):
 	def _validateSelf(self):
 		requiredBools = all(self.requiredBools.values())
 		if not requiredBools:
-			raise ValueError("Some required bools have not been set.")
+			print("Some required bools have not been set.")
+			return False
+		elif self.numDataVars == 0:
+			print("No data variables yet.")
+			return False
+		return True
+		
