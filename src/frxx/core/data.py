@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union, List
+from typing import Optional, List, TypeVar, Generic
 
 from pathlib import Path
 
@@ -18,7 +18,8 @@ _FILL_VALUES = {
 	"|S1": b' '
 }
 
-class frxxData(ABC):
+T = TypeVar('T', bound='frxxData')
+class frxxData(ABC, Generic[T]):
 	def __init__(self):
 		self.ds = xr.Dataset()
 
@@ -574,4 +575,54 @@ class frxxData(ABC):
 			print("Some required bools have not been set.")
 			return False
 		return True
+	
+	@abstractmethod
+	def merge(self, other: T) -> T:
+		pass
+	def _alignTime(self, otherDs: xr.Dataset) -> None:
+		selfStart = datetime.fromisoformat(self.ds.attrs["start_datetime"])
+		otherStart = datetime.fromisoformat(otherDs.attrs["start_datetime"])
 		
+		offset_seconds = (otherStart - selfStart).total_seconds()
+		
+		otherDs["time"].data = otherDs["time"].values + offset_seconds
+		otherDs["time"].attrs["units"] = self.ds["time"].attrs["units"]
+	def _alignSweep(self, otherDs: xr.Dataset) -> None:
+		lastSweep = self.ds["sweep"].values[-1]
+		otherDs["sweep"].data = otherDs["sweep"].values + lastSweep + 1
+		
+		lastSweepNumber = self.ds["sweep_number"].values[-1]
+		otherDs["sweep_number"].data = otherDs["sweep_number"].values + lastSweepNumber + 1
+		
+		timeLength = len(self.ds["time"])
+		otherDs["sweep_start_ray_index"].data = otherDs["sweep_start_ray_index"].values + timeLength
+		otherDs["sweep_end_ray_index"].data = otherDs["sweep_end_ray_index"].values + timeLength
+	def _merge(self, other: "frxxData") -> xr.Dataset:
+		if not self.validateSelf():
+			raise RuntimeError("First operand seems to be invalid.")
+		if not other.validateSelf():
+			raise RuntimeError("Second operand seems to be invalid.")
+
+		selfDsCpy = self.ds.copy(deep=False)
+		otherDsCpy = other.ds.copy(deep=False)
+
+		self._alignTime(otherDsCpy)
+		self._alignSweep(otherDsCpy)
+
+		selfDsCpy.attrs["end_datetime"] = otherDsCpy.attrs["end_datetime"]
+		selfDsCpy.attrs["time_coverage_end"] = otherDsCpy.attrs["time_coverage_end"]
+
+		if set(selfDsCpy.variables) != set(otherDsCpy.variables):
+			raise ValueError(f"Variable mismatch: {set(selfDsCpy.variables)} vs {set(otherDsCpy.variables)}")
+
+		merged = xr.combine_by_coords(
+			[selfDsCpy, otherDsCpy], 
+			join='outer', 
+			compat='override', 
+			combine_attrs='override'
+		)
+
+		if type(merged) != xr.Dataset:
+			raise TypeError("Something went wrong. Somehow we have a dataarray.")
+
+		return merged

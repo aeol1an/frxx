@@ -2,14 +2,14 @@ import numpy as np
 import xarray as xr
 
 from numpy.typing import NDArray
-from typing import List, Union
+from typing import List, Self, Union
 from collections.abc import Sequence
 
 import json
 
 from .data import _FILL_VALUES, frxxData
 
-class IQ(frxxData):
+class IQ(frxxData['IQ']):
 	def __init__(self, ds: xr.Dataset | None = None):
 		super().__init__()
 		
@@ -39,7 +39,7 @@ class IQ(frxxData):
 			self.requiredBoolsIQ["iqdim"] = True
 
 		else:
-			self.ds = ds
+			self.ds = ds.copy(deep=False)
 			self.checkRequiredFields()
 			valid = self.validateSelf()
 			if not valid:
@@ -136,7 +136,7 @@ class IQ(frxxData):
 		if not all(self.requiredBoolsIQ.values()):
 			raise ValueError("Set all IQ object variables.")
 
-		self.ds["iq"] = self._constructDataArray(
+		self.ds[name] = self._constructDataArray(
 			data = data,
 			dims = dims,
 			attrs = attrs,
@@ -182,3 +182,8 @@ class IQ(frxxData):
 			print("Some IQ specific required bools have not been set.")
 			return False
 		return True
+	
+	def merge(self, other: "IQ") -> "IQ":
+		merged = super()._merge(other)
+		ret = IQ(merged)
+		return ret
