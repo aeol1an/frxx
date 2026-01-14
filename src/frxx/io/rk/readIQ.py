@@ -1,8 +1,9 @@
 from pathlib import Path
 import os
 
-import dask.array as da
 import numpy as np
+import dask.array as da
+from dask import delayed
 import struct
 
 from typing import Union
@@ -791,6 +792,35 @@ class rkcfile:
                 )
         #OG is time, h/v, range, iq
         self.pulses = m
+        self.pulsesDtype = IQDtype
+
+        def makeLazyMemmapArray(path, dtype, shape, chunks, offset=0):
+            # This function will be called by workers to get a chunk
+            def getChunk(path, dtype, offset, shape, slices):
+                mm = np.memmap(path, dtype=dtype, mode='r', offset=offset, shape=shape)
+                return np.asarray(mm[slices])
+            
+            # Build the dask array by creating delayed chunks
+            chunk_slices = da.core.slices_from_chunks(da.core.normalize_chunks(chunks, shape))
+            
+            delayed_chunks = [
+                delayed(getChunk)(path, dtype, offset, shape, slc)
+                for slc in chunk_slices
+            ]
+            
+            arrays = [
+                da.from_delayed(
+                    dc,
+                    shape=tuple(s.stop - s.start for s in slc),
+                    dtype=dtype,
+                    meta=np.array([], dtype=dtype)
+                )
+                for dc, slc in zip(delayed_chunks, chunk_slices)
+            ]
+            
+            return da.concatenate(arrays)
+        
+        self.daskPulses = makeLazyMemmapArray(self.filename, IQDtype, (numPulses,), 3000, offset)
 
         # #Get headers with direct OS read - slow so nvm
         # self.pulseHeaders = np.empty(numPulses, dtype=IQHdtype)
@@ -851,15 +881,14 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
     if "correctedLon" in kwargs:
         rkc.header['desc']['longitude'] = kwargs["correctedLon"]
 
-    #get the iq to page everything
     if copy:
         iq = np.ascontiguousarray(rkc.pulses["iq"].transpose((1, 2, 0, 3)))
     else:
-        iq = rkc.pulses["iq"].transpose((1, 2, 0, 3))
+        iq = rkc.daskPulses["iq"].transpose((1, 2, 0, 3))
 
     timeDoubleArr = (
-        rkc.pulses['time_tv_sec'] +
-        rkc.pulses['time_tv_usec']/1000000.
+        rkc.daskPulses['time_tv_sec'].compute() +
+        rkc.daskPulses['time_tv_usec'].compute()/1000000.
     ).astype(np.float64)
 
     if rkc.header['buildNo'] >= 4:
@@ -912,11 +941,6 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
         rkc.header["config"]["systemDCal"],
         rkc.header["config"]["systemPCal"]
     )
-
-    if copy:
-        iq = np.ascontiguousarray(rkc.pulses["iq"].transpose(1, 2, 0, 3))
-    else:
-        iq = rkc.pulses["iq"].transpose(1, 2, 0, 3)
 
     ret.addDataField(
         'iq',
