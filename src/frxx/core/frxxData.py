@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, TypeVar, Generic
 
+from warnings import warn
+
 from pathlib import Path
 
 from numpy.typing import NDArray
@@ -577,27 +579,31 @@ class frxxData(ABC, Generic[T]):
 		return True
 	
 	@abstractmethod
-	def merge(self, other: T) -> T:
+	def concat(self, other: T) -> T:
 		pass
-	def _alignTime(self, otherDs: xr.Dataset) -> None:
+	def _alignTime(self, otherDs: xr.Dataset) -> xr.Dataset:
 		selfStart = datetime.fromisoformat(self.ds.attrs["start_datetime"])
 		otherStart = datetime.fromisoformat(otherDs.attrs["start_datetime"])
 		
 		offset_seconds = (otherStart - selfStart).total_seconds()
 		
-		otherDs["time"].data = otherDs["time"].values + offset_seconds
+		otherDs = otherDs.assign_coords(time=otherDs["time"] + offset_seconds)
 		otherDs["time"].attrs["units"] = self.ds["time"].attrs["units"]
-	def _alignSweep(self, otherDs: xr.Dataset) -> None:
+
+		return otherDs
+	def _alignSweep(self, otherDs: xr.Dataset) -> xr.Dataset:
 		lastSweep = self.ds["sweep"].values[-1]
-		otherDs["sweep"].data = otherDs["sweep"].values + lastSweep + 1
+		otherDs = otherDs.assign_coords(sweep=otherDs["sweep"] + lastSweep+1)
 		
 		lastSweepNumber = self.ds["sweep_number"].values[-1]
-		otherDs["sweep_number"].data = otherDs["sweep_number"].values + lastSweepNumber + 1
+		otherDs["sweep_number"].data = otherDs["sweep_number"] + lastSweepNumber+1
 		
 		timeLength = len(self.ds["time"])
 		otherDs["sweep_start_ray_index"].data = otherDs["sweep_start_ray_index"].values + timeLength
 		otherDs["sweep_end_ray_index"].data = otherDs["sweep_end_ray_index"].values + timeLength
-	def _merge(self, other: "frxxData") -> xr.Dataset:
+
+		return otherDs
+	def _concat(self, other: "frxxData") -> xr.Dataset:
 		if not self.validateSelf():
 			raise RuntimeError("First operand seems to be invalid.")
 		if not other.validateSelf():
@@ -606,21 +612,32 @@ class frxxData(ABC, Generic[T]):
 		selfDsCpy = self.ds.copy(deep=False)
 		otherDsCpy = other.ds.copy(deep=False)
 
-		self._alignTime(otherDsCpy)
-		self._alignSweep(otherDsCpy)
+		otherDsCpy = self._alignTime(otherDsCpy)
+		otherDsCpy = self._alignSweep(otherDsCpy)
 
 		selfDsCpy.attrs["end_datetime"] = otherDsCpy.attrs["end_datetime"]
 		selfDsCpy.attrs["time_coverage_end"] = otherDsCpy.attrs["time_coverage_end"]
+		selfDsCpy["time_coverage_end"].values = otherDsCpy["time_coverage_end"].values
 
 		if set(selfDsCpy.variables) != set(otherDsCpy.variables):
 			raise ValueError(f"Variable mismatch: {set(selfDsCpy.variables)} vs {set(otherDsCpy.variables)}")
 
-		merged = xr.combine_by_coords(
+		merged = xr.concat(
 			[selfDsCpy, otherDsCpy], 
-			join='outer', 
-			compat='override', 
-			combine_attrs='override'
+			dim = "time",
+			data_vars="minimal",
+			coords='minimal',
+			compat='override'
 		)
+		for var in merged.variables:
+			if "sweep" in merged[var].dims:
+				if var == "sweep":
+					#dont need to modify the coordinate itself
+					continue
+				merged[var].loc[{"sweep":otherDsCpy["sweep"].values}] = otherDsCpy[var].values
+		
+		if np.all(np.diff(merged["time"])>0):
+			warn("Time is not non-decreasing! frxxData.concat should be used for adjacent.")
 
 		if type(merged) != xr.Dataset:
 			raise TypeError("Something went wrong. Somehow we have a dataarray.")

@@ -1,5 +1,7 @@
 from pathlib import Path
+import os
 
+import dask.array as da
 import numpy as np
 import struct
 
@@ -7,7 +9,7 @@ from typing import Union
 from numpy.typing import NDArray
 
 from ...core import IQ
-from ...core.data import _FILL_VALUES
+from ...core.frxxData import _FILL_VALUES
 
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
@@ -582,6 +584,31 @@ class rkcfile:
                     ('padding', 'uint8', (84,)),
                     ('iq', 'int16', (2, gateCount, 2))
                 ])
+                IQHdtype = np.dtype([
+                    ('i', 'uint64'),
+                    ('n', 'uint64'),
+                    ('t', 'uint64'),
+                    ('s', 'uint32'),
+                    ('capacity', 'uint32'),
+                    ('gateCount', 'uint32'),
+                    ('downSampledGateCount', 'uint32'),
+                    ('marker', 'uint32'),
+                    ('pulseWidthSampleCount', 'uint32'),
+                    ('time_tv_sec', 'uint64'),
+                    ('time_tv_usec', 'uint64'),
+                    ('timeDouble', 'f8'),
+                    ('rawAzimuth', 'uint8', (4,)),
+                    ('rawElevation', 'uint8', (4,)),
+                    ('configIndex', 'uint16'),
+                    ('configSubIndex', 'uint16'),
+                    ('positionIndex', 'uint32'),
+                    ('gateSizeMeters', 'f4'),
+                    ('elevationDegrees', 'f4'),
+                    ('azimuthDegrees', 'f4'),
+                    ('elevationVelocityDegreesPerSecond', 'f4'),
+                    ('azimuthVelocityDegreesPerSecond', 'f4'),
+                    ('padding', 'uint8', (84,)),
+                ])
                 numPulses = pulseDataSize // IQDtype.itemsize
                 if verbose:
                     print(f"Number of pulses: {numPulses}")
@@ -615,6 +642,31 @@ class rkcfile:
                     ('azimuthVelocityDegreesPerSecond', 'f4'),
                     ('padding', 'uint8', (84,)),
                     ('iq', 'f4', (2, downSampledGateCount, 2))
+                ])
+                IQHdtype = np.dtype([
+                    ('i', 'uint64'),
+                    ('n', 'uint64'),
+                    ('t', 'uint64'),
+                    ('s', 'uint32'),
+                    ('capacity', 'uint32'),
+                    ('gateCount', 'uint32'),
+                    ('downSampledGateCount', 'uint32'),
+                    ('marker', 'uint32'),
+                    ('pulseWidthSampleCount', 'uint32'),
+                    ('time_tv_sec', 'uint64'),
+                    ('time_tv_usec', 'uint64'),
+                    ('timeDouble', 'f8'),
+                    ('rawAzimuth', 'uint8', (4,)),
+                    ('rawElevation', 'uint8', (4,)),
+                    ('configIndex', 'uint16'),
+                    ('configSubIndex', 'uint16'),
+                    ('positionIndex', 'uint32'),
+                    ('gateSizeMeters', 'f4'),
+                    ('elevationDegrees', 'f4'),
+                    ('azimuthDegrees', 'f4'),
+                    ('elevationVelocityDegreesPerSecond', 'f4'),
+                    ('azimuthVelocityDegreesPerSecond', 'f4'),
+                    ('padding', 'uint8', (84,)),
                 ])
                 numPulses = pulseDataSize // IQDtype.itemsize
                 if verbose:
@@ -650,6 +702,30 @@ class rkcfile:
                     ('azimuthVelocityDegreesPerSecond', 'f4'),
                     ('iq', 'int16', (2, gateCount, 2))
                 ])
+                IQHdtype = np.dtype([
+                    ('i', 'uint64'),
+                    ('n', 'uint64'),
+                    ('t', 'uint64'),
+                    ('s', 'uint32'),
+                    ('capacity', 'uint32'),
+                    ('gateCount', 'uint32'),
+                    ('downSampledGateCount', 'uint32'),
+                    ('marker', 'uint32'),
+                    ('pulseWidthSampleCount', 'uint32'),
+                    ('time_tv_sec', 'uint64'),
+                    ('time_tv_usec', 'uint64'),
+                    ('timeDouble', 'f8'),
+                    ('rawAzimuth', 'uint8', (4,)),
+                    ('rawElevation', 'uint8', (4,)),
+                    ('configIndex', 'uint16'),
+                    ('configSubIndex', 'uint16'),
+                    ('azimuthBinIndex', 'uint16'),
+                    ('gateSizeMeters', 'f4'),
+                    ('elevationDegrees', 'f4'),
+                    ('azimuthDegrees', 'f4'),
+                    ('elevationVelocityDegreesPerSecond', 'f4'),
+                    ('azimuthVelocityDegreesPerSecond', 'f4'),
+                ])
                 numPulses = pulseDataSize // IQDtype.itemsize
                 if verbose:
                     print(f"Number of pulses: {numPulses}")
@@ -683,6 +759,30 @@ class rkcfile:
                     ('azimuthVelocityDegreesPerSecond', 'f4'),
                     ('iq', 'f4', (2,downSampledGateCount,2)),
                 ])
+                IQHdtype = np.dtype([
+                    ('i', 'uint64'),
+                    ('n', 'uint64'),
+                    ('t', 'uint64'),
+                    ('s', 'uint32'),
+                    ('capacity', 'uint32'),
+                    ('gateCount', 'uint32'),
+                    ('downSampledGateCount', 'uint32'),
+                    ('marker', 'uint32'),
+                    ('pulseWidthSampleCount', 'uint32'),
+                    ('time_tv_sec', 'uint64'),
+                    ('time_tv_usec', 'uint64'),
+                    ('timeDouble', 'f8'),
+                    ('rawAzimuth', 'uint8', (4,)),
+                    ('rawElevation', 'uint8', (4,)),
+                    ('configIndex', 'uint16'),
+                    ('configSubIndex', 'uint16'),
+                    ('azimuthBinIndex', 'uint16'),
+                    ('gateSizeMeters', 'f4'),
+                    ('elevationDegrees', 'f4'),
+                    ('azimuthDegrees', 'f4'),
+                    ('elevationVelocityDegreesPerSecond', 'f4'),
+                    ('azimuthVelocityDegreesPerSecond', 'f4'),
+                ])
                 numPulses = pulseDataSize // IQDtype.itemsize
                 if verbose:
                     print(f"Number of pulses: {numPulses}")
@@ -691,6 +791,17 @@ class rkcfile:
                 )
         #OG is time, h/v, range, iq
         self.pulses = m
+
+        # #Get headers with direct OS read - slow so nvm
+        # self.pulseHeaders = np.empty(numPulses, dtype=IQHdtype)
+        # fd = os.open(self.filename, os.O_RDONLY)
+        # hSize = IQHdtype.itemsize
+        # skipSize = IQDtype.itemsize - hSize
+        # for i in range(numPulses):
+        #     buf = os.read(fd, hSize)
+        #     self.pulseHeaders[i] = np.frombuffer(buf, dtype=IQHdtype)[0]
+        #     os.lseek(fd, skipSize, os.SEEK_CUR)
+        # os.close(fd)
         #-------------------------------------------------------------------------------------------
         
         
@@ -742,9 +853,9 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
 
     #get the iq to page everything
     if copy:
-        iq = np.ascontiguousarray(rkc.pulses["iq"].transpose(1, 2, 0, 3))
+        iq = np.ascontiguousarray(rkc.pulses["iq"].transpose((1, 2, 0, 3)))
     else:
-        iq = rkc.pulses["iq"].transpose(1, 2, 0, 3)
+        iq = rkc.pulses["iq"].transpose((1, 2, 0, 3))
 
     timeDoubleArr = (
         rkc.pulses['time_tv_sec'] +

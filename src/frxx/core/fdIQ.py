@@ -7,7 +7,7 @@ from collections.abc import Sequence
 
 import json
 
-from .data import _FILL_VALUES, frxxData
+from .frxxData import _FILL_VALUES, frxxData
 
 class IQ(frxxData['IQ']):
 	def __init__(self, ds: xr.Dataset | None = None):
@@ -183,7 +183,7 @@ class IQ(frxxData['IQ']):
 			return False
 		return True
 	
-	def merge(self, other: "IQ") -> "IQ":
-		merged = super()._merge(other)
+	def concat(self, other: "IQ") -> "IQ":
+		merged = super()._concat(other)
 		ret = IQ(merged)
 		return ret

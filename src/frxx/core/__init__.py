@@ -1,3 +1,3 @@
-from .IQ import IQ
-from .moments import moments
-from .spectra import spectra
+from .fdIQ import IQ
+from .fdMoments import moments
+from .fdSpectra import spectra
