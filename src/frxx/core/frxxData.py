@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, TypeVar, Generic
 
-from warnings import warn
+import json
 
 from pathlib import Path
 
@@ -11,6 +11,8 @@ import pytz
 
 import numpy as np
 import xarray as xr
+
+from ..io import miscIO
 
 _FILL_VALUES = {
 	"int16": np.iinfo(np.int16).min,
@@ -53,6 +55,7 @@ class frxxData(ABC, Generic[T]):
 			"pulse_width": False,
 			"prt": False,
 			"wavelength": False,
+			"source_file": False,
 		}
 
 		self.optionalBools = {
@@ -146,9 +149,17 @@ class frxxData(ABC, Generic[T]):
 		
 		self.requiredBools["time"] = True
 
-	def setSweep(self, sweepNum: int = 0):
+	def setSweep(self, sweepNum: int = 0, volStartUnixTime: float | None = None, time_zone: str | None = None):
 		if not self.requiredBools["time"]:
 			raise RuntimeError("Need to call setTime before this.")
+		if (sweepNum != 0) and (volStartUnixTime is None):
+			raise ValueError("Need to provide a volStartTimeDbl for start of"
+							 "volume if this isn't the first sweep.\n"
+							 "Alternatively, initializing with sweepNum=0 "
+							 "and calling .concat is simpler.")
+		if (volStartUnixTime is not None) and (time_zone is None):
+			raise ValueError("Need to give time zone string (probably "
+							 "'US/Central') for pytz if time double is given.")
 		
 		self.ds = self.ds.assign_coords(sweep=np.arange(1))
 
@@ -187,6 +198,21 @@ class frxxData(ABC, Generic[T]):
 			"dtype": "int32",
 			"_FillValue": _FILL_VALUES["int32"]
 		}
+
+		if volStartUnixTime is not None and time_zone is not None:
+			volStartDt = datetime.fromtimestamp(volStartUnixTime, tz=pytz.timezone(time_zone))\
+				.astimezone(pytz.utc)
+			sweepStartDt = datetime.fromtimestamp(self.ds.attrs["start_datetime"])
+
+			offset_seconds = (sweepStartDt - volStartDt).total_seconds()
+			
+			volStartStr = volStartDt.isoformat().replace('+00:00', 'Z')
+			self.ds.attrs["volume_start_datetime"] = volStartStr
+
+			self.ds = self.ds.assign_coords(time=self.ds["time"] + offset_seconds)
+			self.ds["time"].attrs["units"] = "seconds since " + volStartStr
+		else: #sweepNum is 0
+			self.ds.attrs["volume_start_datetime"] = self.ds.attrs["start_datetime"]
 
 		self.requiredBools["sweep"] = True
 
@@ -444,6 +470,39 @@ class frxxData(ABC, Generic[T]):
 			
 		self.requiredBools["wavelength"] = True
 
+	def setSourceFile(self, filename: str | Path):
+		if not self.requiredBools["time"]:
+			raise RuntimeError("Need to call setTime function so "
+							   "that number of elements are known.")
+		
+		if filename == "hardware":
+			self.ds.attrs["source_files"] = "hardware"
+		else:
+			sfJson = {
+				"files": [
+					{
+						"file": miscIO.pathToJson(Path(filename).resolve()),
+						"idx": [[0, len(self.ds["time"])-1]]
+					}
+				]
+			}
+			self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
+
+		self.requiredBools["source_file"] = True
+
+	def editPlatformPrefix(self, platform: str, prefix: str):
+		if not self.requiredBools["source_file"]:
+			raise RuntimeError("Source file needs to be set first!")
+		if platform not in ('win', 'macos', 'linux'):
+			raise ValueError("Platform must be 'win', 'macos', or 'linux'.")
+		_ = Path(prefix) #check if prefix can be read into a path
+		if self.ds.attrs["source_files"] == "hardware":
+			raise ValueError("Can't change a file prefix on something that didn't come from a file.")
+		
+		sfJson = json.loads(self.ds.attrs["source_files"])
+		sfJson["prefix"][platform] = prefix
+		self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
+
 	def appendHistory(self, history: str):
 		self.rootAttrs["history"] += " "+history
 		self.optionalBools["history"] = True
@@ -568,6 +627,10 @@ class frxxData(ABC, Generic[T]):
 		vars = ["wavelength", "nyquist_velocity"]
 		self.requiredBools["wavelength"] = self._checkVars(vars)
 
+		#setSourceFile function
+		attrs = ["sources_files"]
+		self.requiredBools["source_file"] = self._checkAttrs(attrs)
+
 	@abstractmethod
 	def validateSelf(self) -> bool:
 		pass
@@ -619,6 +682,29 @@ class frxxData(ABC, Generic[T]):
 		selfDsCpy.attrs["time_coverage_end"] = otherDsCpy.attrs["time_coverage_end"]
 		selfDsCpy["time_coverage_end"].values = otherDsCpy["time_coverage_end"].values
 
+		# hardware status is viral - if either source is hardware, result is hardware
+		if selfDsCpy.attrs["source_files"] == "hardware" or otherDsCpy.attrs["source_files"] == "hardware":
+			selfDsCpy.attrs["source_files"] = "hardware"
+		else:
+			selfSfJson = json.loads(selfDsCpy.attrs["source_files"])
+			otherSfJson = json.loads(otherDsCpy.attrs["source_files"])
+
+			for fileToAdd in otherSfJson["files"]:
+				for searchFile in selfSfJson["files"]:
+					if miscIO.jsonToPath(fileToAdd["file"]).resolve() == miscIO.jsonToPath(searchFile["file"]).resolve():
+						intervals = sorted(searchFile["idx"] + fileToAdd["idx"], key=lambda x: x[0])
+						mergedIdx = []
+						for start, end in intervals:
+							if mergedIdx and start <= mergedIdx[-1][1] + 1:
+								mergedIdx[-1][1] = max(mergedIdx[-1][1], end)
+							else:
+								mergedIdx.append([start, end])
+						searchFile["idx"] = mergedIdx
+						break
+				else:
+					selfSfJson["files"].append(fileToAdd)
+			selfDsCpy.attrs["source_files"] = json.dumps(selfSfJson, indent='\t')
+
 		if set(selfDsCpy.variables) != set(otherDsCpy.variables):
 			raise ValueError(f"Variable mismatch: {set(selfDsCpy.variables)} vs {set(otherDsCpy.variables)}")
 
@@ -636,8 +722,9 @@ class frxxData(ABC, Generic[T]):
 					continue
 				merged[var].loc[{"sweep":otherDsCpy["sweep"].values}] = otherDsCpy[var].values
 		
-		if np.all(np.diff(merged["time"])>0):
-			warn("Time is not non-decreasing! frxxData.concat should be used for adjacent.")
+		if np.any(np.diff(merged["time"])<0):
+			raise ValueError("Time variable is non-decreasing! "
+							 "Concat is only for time-adjacent files.")
 
 		if type(merged) != xr.Dataset:
 			raise TypeError("Something went wrong. Somehow we have a dataarray.")
