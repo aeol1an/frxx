@@ -2,8 +2,6 @@ from typing import Optional
 from pathlib import Path
 import platform
 
-from ..core import frxxData
-
 def validatePath(path: str | Path, mustBeDir: bool = False) -> Path | None:
 	p = Path(path)
 	

@@ -9,8 +9,7 @@ import struct
 from typing import Union
 from numpy.typing import NDArray
 
-from ...core import IQ
-from ...core.frxxData import _FILL_VALUES
+from ... import core
 
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
@@ -857,7 +856,7 @@ class rkcfile:
     def azArray(self):
         return self.pulses['azimuthDegrees']
     
-def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
+def readIQ(path: str | Path, copy: bool = True, **kwargs) -> core.IQ:
     if "tzStr" not in kwargs:
         raise TypeError("Needed 'tzStr' kwarg. It's probably 'US/Central'.")
     else:
@@ -873,7 +872,7 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
     else:
         institution = kwargs["institution"]
 
-    ret = IQ()
+    ret = core.IQ()
     rkc = rkcfile(path, verbose=False)
 
     if "correctedLat" in kwargs:
@@ -952,7 +951,7 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> IQ:
         },
         encoding = {
             "dtype": "float32",
-            "_FillValue": _FILL_VALUES["float32"]
+            "_FillValue": core._FILL_VALUES["float32"]
         }
     )
 

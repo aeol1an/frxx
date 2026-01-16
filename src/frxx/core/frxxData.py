@@ -1,18 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, TypeVar, Generic
-
-import json
+from numpy.typing import NDArray
+import warnings
 
 from pathlib import Path
+import json
+from ..io import miscIO
 
-from numpy.typing import NDArray
 from datetime import datetime, timedelta
 import pytz
 
 import numpy as np
 import xarray as xr
-
-from ..io import miscIO
 
 _FILL_VALUES = {
 	"int16": np.iinfo(np.int16).min,
@@ -666,11 +665,15 @@ class frxxData(ABC, Generic[T]):
 		otherDs["sweep_end_ray_index"].data = otherDs["sweep_end_ray_index"].values + timeLength
 
 		return otherDs
-	def _concat(self, other: "frxxData") -> xr.Dataset:
+	def _concat(self, other: "frxxData", newSweep: bool = True) -> xr.Dataset:
 		if not self.validateSelf():
 			raise RuntimeError("First operand seems to be invalid.")
 		if not other.validateSelf():
 			raise RuntimeError("Second operand seems to be invalid.")
+		if self.ds["volume_number"].data.item() != other.ds["volume_number"].data.item():
+			warning = ("volume_number in both files should be equal before concatenation "
+				 		  "to prevent second volume number from being overwritten")
+			warnings.warn(warning)
 
 		selfDsCpy = self.ds.copy(deep=False)
 		otherDsCpy = other.ds.copy(deep=False)
@@ -715,12 +718,31 @@ class frxxData(ABC, Generic[T]):
 			coords='minimal',
 			compat='override'
 		)
+		newSweepVar = merged["sweep"].copy(deep=True)
+		newSweepVar.data = np.arange(len(newSweepVar))
+		merged = merged.assign_coords(sweep=newSweepVar)
 		for var in merged.variables:
 			if "sweep" in merged[var].dims:
 				if var == "sweep":
 					#dont need to modify the coordinate itself
 					continue
 				merged[var].loc[{"sweep":otherDsCpy["sweep"].values}] = otherDsCpy[var].values
+		
+		if not newSweep:
+			mergedSweep = len(selfDsCpy["sweep"])-1
+			endSweep = len(newSweepVar)-1
+			newSweepVar = newSweepVar.copy(deep=True)
+			newSweepVar.data = np.arange(endSweep)
+
+			merged["sweep_start_ray_index"].values[mergedSweep+1] = merged["sweep_start_ray_index"].values[mergedSweep]
+			merged["sweep_start_ray_index"].values[mergedSweep:endSweep] = merged["sweep_start_ray_index"].values[mergedSweep+1:endSweep+1]
+			merged["sweep_start_ray_index"].values[endSweep] = -1
+			merged["sweep_end_ray_index"].values[mergedSweep:endSweep] = merged["sweep_end_ray_index"].values[mergedSweep+1:endSweep+1]
+			merged["sweep_end_ray_index"].values[endSweep] = -1
+			merged["sweep_numer"].values[mergedSweep:endSweep] -= 1
+			merged["sweep_numer"].values[endSweep] = -1
+
+			merged = merged.assign_coords(sweep=newSweepVar)
 		
 		if np.any(np.diff(merged["time"])<0):
 			raise ValueError("Time variable is non-decreasing! "

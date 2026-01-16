@@ -1,2 +1,2 @@
-from .rk.readIQ import rkcfile, readIQ
+from . import decoders
 from . import miscIO

@@ -5,8 +5,6 @@ from numpy.typing import NDArray
 from typing import List, Self, Union
 from collections.abc import Sequence
 
-import json
-
 from .frxxData import _FILL_VALUES, frxxData
 
 class IQ(frxxData['IQ']):
