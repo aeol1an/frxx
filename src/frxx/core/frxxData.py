@@ -5,7 +5,7 @@ import warnings
 
 from pathlib import Path
 import json
-from ..io import miscIO
+from ..utils import pathUtils
 
 from datetime import datetime, timedelta
 import pytz
@@ -480,7 +480,7 @@ class frxxData(ABC, Generic[T]):
 			sfJson = {
 				"files": [
 					{
-						"file": miscIO.pathToJson(Path(filename).resolve()),
+						"file": pathUtils.pathToJson(Path(filename).resolve()),
 						"idx": [[0, len(self.ds["time"])-1]]
 					}
 				]
@@ -694,7 +694,7 @@ class frxxData(ABC, Generic[T]):
 
 			for fileToAdd in otherSfJson["files"]:
 				for searchFile in selfSfJson["files"]:
-					if miscIO.jsonToPath(fileToAdd["file"]).resolve() == miscIO.jsonToPath(searchFile["file"]).resolve():
+					if pathUtils.jsonToPath(fileToAdd["file"]).resolve() == pathUtils.jsonToPath(searchFile["file"]).resolve():
 						intervals = sorted(searchFile["idx"] + fileToAdd["idx"], key=lambda x: x[0])
 						mergedIdx = []
 						for start, end in intervals:

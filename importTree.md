@@ -14,7 +14,7 @@ frxx:
  - - frxxData
 
  - - fdIQ, fdMoments, fdSpectra:
- - - - frxxData
+ - - - frxxData (only uses miscIO)
 
  - - frxxData:
  - - - io
