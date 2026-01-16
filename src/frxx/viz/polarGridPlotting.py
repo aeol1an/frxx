@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from ..misc.coordConvert import cart2polar
+from ..utils.coordConvert import cart2polar
 
 def rangeRings(ax = None, rint = 3, maxR = 30, xlims = (-30, 30), ylims = (-30, 30), n = 100):
     if ax is None:

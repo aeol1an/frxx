@@ -9,7 +9,7 @@ import struct
 from typing import Union
 from numpy.typing import NDArray
 
-from ... import core
+from .... import core
 
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
@@ -932,6 +932,7 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> core.IQ:
     ret.setPulseWidthSeconds(pulseWidthArr)
     ret.setPrtSeconds(prtArr)
     ret.setWavelengthMeters(wavelengthArr)
+    ret.setSourceFile(rkc.filename)
 
     ret.setPol(2)
     ret.setNoisedB(rkc.header["config"]["noise"])

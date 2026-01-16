@@ -627,7 +627,7 @@ class frxxData(ABC, Generic[T]):
 		self.requiredBools["wavelength"] = self._checkVars(vars)
 
 		#setSourceFile function
-		attrs = ["sources_files"]
+		attrs = ["source_files"]
 		self.requiredBools["source_file"] = self._checkAttrs(attrs)
 
 	@abstractmethod
@@ -641,7 +641,7 @@ class frxxData(ABC, Generic[T]):
 		return True
 	
 	@abstractmethod
-	def concat(self, other: T) -> T:
+	def concat(self, other: T, newSweep: bool = True) -> T:
 		pass
 	def _alignTime(self, otherDs: xr.Dataset) -> xr.Dataset:
 		selfStart = datetime.fromisoformat(self.ds.attrs["start_datetime"])
@@ -718,9 +718,8 @@ class frxxData(ABC, Generic[T]):
 			coords='minimal',
 			compat='override'
 		)
-		newSweepVar = merged["sweep"].copy(deep=True)
-		newSweepVar.data = np.arange(len(newSweepVar))
-		merged = merged.assign_coords(sweep=newSweepVar)
+		newSweepVarLen = len(merged["sweep"])
+		merged = merged.assign_coords(sweep=np.arange(newSweepVarLen))
 		for var in merged.variables:
 			if "sweep" in merged[var].dims:
 				if var == "sweep":
@@ -730,9 +729,7 @@ class frxxData(ABC, Generic[T]):
 		
 		if not newSweep:
 			mergedSweep = len(selfDsCpy["sweep"])-1
-			endSweep = len(newSweepVar)-1
-			newSweepVar = newSweepVar.copy(deep=True)
-			newSweepVar.data = np.arange(endSweep)
+			endSweep = newSweepVarLen-1
 
 			merged["sweep_start_ray_index"].values[mergedSweep+1] = merged["sweep_start_ray_index"].values[mergedSweep]
 			merged["sweep_start_ray_index"].values[mergedSweep:endSweep] = merged["sweep_start_ray_index"].values[mergedSweep+1:endSweep+1]
@@ -742,7 +739,7 @@ class frxxData(ABC, Generic[T]):
 			merged["sweep_numer"].values[mergedSweep:endSweep] -= 1
 			merged["sweep_numer"].values[endSweep] = -1
 
-			merged = merged.assign_coords(sweep=newSweepVar)
+			merged = merged.isel(sweep=slice(0, endSweep))
 		
 		if np.any(np.diff(merged["time"])<0):
 			raise ValueError("Time variable is non-decreasing! "

@@ -181,7 +181,7 @@ class IQ(frxxData['IQ']):
 			return False
 		return True
 	
-	def concat(self, other: "IQ") -> "IQ":
-		merged = super()._concat(other)
+	def concat(self, other: "IQ", newSweep: bool = True) -> "IQ":
+		merged = super()._concat(other, newSweep)
 		ret = IQ(merged)
 		return ret
