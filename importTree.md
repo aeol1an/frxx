@@ -5,7 +5,7 @@ frxx:
  - io
  - proc
  - viz
- - misc
+ - utils
 
  - core:
  - - fdIQ
@@ -14,13 +14,12 @@ frxx:
  - - frxxData
 
  - - fdIQ, fdMoments, fdSpectra:
- - - - frxxData (only uses miscIO)
+ - - - frxxData
 
  - - frxxData:
- - - - io
+ - - - utils
 
  - io:
- - - miscIO
  - - decoders
 
  - - decoders:
@@ -30,4 +29,9 @@ frxx:
  - - - - readIQ
 
  - - - - readIQ
- - - - - - fdIQ (cycle here if core imported first)
+ - - - - - fdIQ
+
+ - utils:
+ - - coordConvert
+ - - freqResolution
+ - - pathUtils
