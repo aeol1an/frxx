@@ -93,13 +93,31 @@ def pathToJson(path: str | Path) -> dict:
 		"path": parts
 	}
 
-
 def jsonToPath(pathJson: dict) -> Path:
 	currentPlatform = getPlatform()
 	prefix = pathJson["prefix"][currentPlatform]
-	
 	return Path(prefix, *pathJson["path"])
 
+def editPathJsonPrefix(pathJson: dict, platform: str, prefix: str) -> dict:
+	if platform not in ('win', 'macos', 'linux'):
+		raise ValueError("Platform must be 'win', 'macos', or 'linux'.")
+	_ = Path(prefix)  # validate prefix is a valid path string
+	
+	newPathJson = {
+		"prefix": pathJson["prefix"].copy(),
+		"path": pathJson["path"]
+	}
+	newPathJson["prefix"][platform] = prefix
+	return newPathJson
+
+def pathJsonEqual(pathJson1: dict, pathJson2: dict, prefixReqdEqual: bool = True) -> bool:
+	if prefixReqdEqual:
+		for platform in ("win", "macos", "linux"):
+			if not (pathJson1["prefix"][platform] == pathJson2["prefix"][platform]):
+				return False
+	if not (jsonToPath(pathJson1).resolve() == jsonToPath(pathJson2).resolve()):
+		return False
+	return True
 
 def getCfrad(path: Optional[str | Path]= None) -> list[Path]:
 	if path is None:

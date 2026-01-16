@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, TypeVar, Generic
+from typing import Optional, List, Tuple, TypeVar, Generic
 from numpy.typing import NDArray
 import warnings
 
 from pathlib import Path
 import json
-from ..utils import pathUtils
+from ..utils import pathUtils, sourceFile
 
 from datetime import datetime, timedelta
 import pytz
@@ -25,6 +25,26 @@ T = TypeVar('T', bound='frxxData')
 class frxxData(ABC, Generic[T]):
 	def __init__(self):
 		self.ds = xr.Dataset()
+
+		self.nonDataVars = [
+			"volume_number",
+			"time_coverage_start",
+			"time_coverage_end",
+			"sweep_number",
+			"sweep_start_ray_index",
+			"sweep_end_ray_index",
+			"sweep_mode",
+			"fixed_angle",
+			"latitude",
+			"longitude",
+			"altitude",
+			"azimuth",
+			"elevation",
+			"pulse_width",
+			"prt",
+			"wavelength",
+			"nyquist_velocity",
+		]
 
 		self.rootAttrs = {
 			"frxx_data_type": "",
@@ -474,32 +494,26 @@ class frxxData(ABC, Generic[T]):
 			raise RuntimeError("Need to call setTime function so "
 							   "that number of elements are known.")
 		
-		if filename == "hardware":
-			self.ds.attrs["source_files"] = "hardware"
-		else:
-			sfJson = {
-				"files": [
-					{
-						"file": pathUtils.pathToJson(Path(filename).resolve()),
-						"idx": [[0, len(self.ds["time"])-1]]
-					}
-				]
-			}
-			self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
+		sfJson = {
+			"files": [
+				sourceFile.makeFromPathAndLength(
+					filename, 
+					len(self.ds["time"])
+				).toJson()
+			]
+		}
+		self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
 
 		self.requiredBools["source_file"] = True
 
 	def editPlatformPrefix(self, platform: str, prefix: str):
 		if not self.requiredBools["source_file"]:
 			raise RuntimeError("Source file needs to be set first!")
-		if platform not in ('win', 'macos', 'linux'):
-			raise ValueError("Platform must be 'win', 'macos', or 'linux'.")
-		_ = Path(prefix) #check if prefix can be read into a path
-		if self.ds.attrs["source_files"] == "hardware":
-			raise ValueError("Can't change a file prefix on something that didn't come from a file.")
 		
 		sfJson = json.loads(self.ds.attrs["source_files"])
-		sfJson["prefix"][platform] = prefix
+		for i in range(len(sfJson["files"])):
+			sfJson["files"][i] = sourceFile.makeFromJson(sfJson["files"][i])\
+				.editPlatformPrefix(platform, prefix).toJson()
 		self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
 
 	def appendHistory(self, history: str):
@@ -685,28 +699,34 @@ class frxxData(ABC, Generic[T]):
 		selfDsCpy.attrs["time_coverage_end"] = otherDsCpy.attrs["time_coverage_end"]
 		selfDsCpy["time_coverage_end"].values = otherDsCpy["time_coverage_end"].values
 
-		# hardware status is viral - if either source is hardware, result is hardware
-		if selfDsCpy.attrs["source_files"] == "hardware" or otherDsCpy.attrs["source_files"] == "hardware":
-			selfDsCpy.attrs["source_files"] = "hardware"
-		else:
-			selfSfJson = json.loads(selfDsCpy.attrs["source_files"])
-			otherSfJson = json.loads(otherDsCpy.attrs["source_files"])
 
-			for fileToAdd in otherSfJson["files"]:
-				for searchFile in selfSfJson["files"]:
-					if pathUtils.jsonToPath(fileToAdd["file"]).resolve() == pathUtils.jsonToPath(searchFile["file"]).resolve():
-						intervals = sorted(searchFile["idx"] + fileToAdd["idx"], key=lambda x: x[0])
-						mergedIdx = []
-						for start, end in intervals:
-							if mergedIdx and start <= mergedIdx[-1][1] + 1:
-								mergedIdx[-1][1] = max(mergedIdx[-1][1], end)
-							else:
-								mergedIdx.append([start, end])
-						searchFile["idx"] = mergedIdx
-						break
+		selfSfJson = json.loads(selfDsCpy.attrs["source_files"])
+		otherSfJson = json.loads(otherDsCpy.attrs["source_files"])
+
+		selfFiles = [sourceFile.makeFromJson(f) for f in selfSfJson["files"]]
+		otherFiles = [sourceFile.makeFromJson(f) for f in otherSfJson["files"]]
+
+		for fileToAdd in otherFiles:
+			if fileToAdd.isHardware:
+				if not selfFiles[-1].isHardware:
+					selfFiles.append(fileToAdd)
+			else:
+				lastFile = selfFiles[-1]
+				if not lastFile.isHardware and pathUtils.pathJsonEqual(fileToAdd.pathJson, lastFile.pathJson):
+					#if its the last file (we merge)
+					selfFiles[-1] += fileToAdd
 				else:
-					selfSfJson["files"].append(fileToAdd)
-			selfDsCpy.attrs["source_files"] = json.dumps(selfSfJson, indent='\t')
+					#if we need to append to list of files
+					# check if it exists earlier (which would be an error)
+					for searchFile in selfFiles[:-1]:
+						if not searchFile.isHardware and pathUtils.pathJsonEqual(fileToAdd.pathJson, searchFile.pathJson):
+							raise RuntimeError("Source file to add was found in the non-last position. "
+											   "Merge is for immediate concatenations!")
+					selfFiles.append(fileToAdd)
+
+
+		selfSfJson["files"] = [f.toJson() for f in selfFiles]
+		selfDsCpy.attrs["source_files"] = json.dumps(selfSfJson, indent='\t')
 
 		if set(selfDsCpy.variables) != set(otherDsCpy.variables):
 			raise ValueError(f"Variable mismatch: {set(selfDsCpy.variables)} vs {set(otherDsCpy.variables)}")
@@ -749,3 +769,18 @@ class frxxData(ABC, Generic[T]):
 			raise TypeError("Something went wrong. Somehow we have a dataarray.")
 
 		return merged
+	@abstractmethod
+	def __add__(self, other: T) -> T:
+		pass
+	@abstractmethod
+	def __radd__(self, other: int | T) -> T:
+		pass
+	@abstractmethod
+	def __iadd__(self, other: T) -> T:
+		pass
+
+	@abstractmethod
+	def breakAt(self, index: int, newVol: bool = False, newSweep: bool = True) -> Tuple[T, T]:
+		pass
+	def _breakAt(self, index: int, newVol: bool = False, newSweep: bool = True):
+		pass

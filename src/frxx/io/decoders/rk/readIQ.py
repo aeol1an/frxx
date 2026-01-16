@@ -9,7 +9,7 @@ import struct
 from typing import Union
 from numpy.typing import NDArray
 
-from .... import core
+from ....core import IQ, _FILL_VALUES
 
 class rkcfile:
     def __init__(self, filename, maxPulse = None, posFilename = None, verbose = True):
@@ -819,7 +819,7 @@ class rkcfile:
             
             return da.concatenate(arrays)
         
-        self.daskPulses = makeLazyMemmapArray(self.filename, IQDtype, (numPulses,), 3000, offset)
+        self.daskPulses = makeLazyMemmapArray(self.filename, IQDtype, (numPulses,), 10000, offset)
 
         # #Get headers with direct OS read - slow so nvm
         # self.pulseHeaders = np.empty(numPulses, dtype=IQHdtype)
@@ -856,29 +856,19 @@ class rkcfile:
     def azArray(self):
         return self.pulses['azimuthDegrees']
     
-def readIQ(path: str | Path, copy: bool = True, **kwargs) -> core.IQ:
-    if "tzStr" not in kwargs:
-        raise TypeError("Needed 'tzStr' kwarg. It's probably 'US/Central'.")
-    else:
-        tzStr = kwargs["tzStr"]
-
-    if "instrumentMame" not in kwargs:
-        instrName = "RaXPol"
-    else:
-        instrName = kwargs["instrumentName"]
-
-    if "institution" not in kwargs:
-        institution = "The University of Oklahoma"
-    else:
-        institution = kwargs["institution"]
-
-    ret = core.IQ()
+def readIQ(
+    path: str | Path, copy = False,
+    tzStr: str = 'US/Central', instrName: str = "RaXPol", 
+    institution: str = "The University of Oklahoma",
+    correctedLat: float | None = None, correctedLon: float | None = None
+) -> IQ:
+    ret = IQ()
     rkc = rkcfile(path, verbose=False)
 
-    if "correctedLat" in kwargs:
-        rkc.header['desc']['latitude'] = kwargs["correctedLat"]
-    if "correctedLon" in kwargs:
-        rkc.header['desc']['longitude'] = kwargs["correctedLon"]
+    if correctedLat is None:
+        rkc.header['desc']['latitude'] = correctedLat
+    if correctedLon is None:
+        rkc.header['desc']['longitude'] = correctedLon
 
     if copy:
         iq = np.ascontiguousarray(rkc.pulses["iq"].transpose((1, 2, 0, 3)))
@@ -915,7 +905,7 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> core.IQ:
     ret.setInstrument(
         name = instrName,
         institution = institution,
-        source = rkc.header["preface"]
+        source = 'RadarKit/IQ'
     )
     ret.setVolume(0)
     ret.setTime(timeDoubleArr, tzStr)
@@ -952,7 +942,7 @@ def readIQ(path: str | Path, copy: bool = True, **kwargs) -> core.IQ:
         },
         encoding = {
             "dtype": "float32",
-            "_FillValue": core._FILL_VALUES["float32"]
+            "_FillValue": _FILL_VALUES["float32"]
         }
     )
 

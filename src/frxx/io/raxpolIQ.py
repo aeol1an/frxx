@@ -3,6 +3,7 @@ from .radarkitIQ import rkcfile
 from .raxpolCf import raxpolCf
 from pathlib import Path
 import pandas as pd
+from numba import njit
 import multiprocessing
 
 def _getRootRelativeFiles(root, caseName):
@@ -14,14 +15,13 @@ def _getRootRelativeFiles(root, caseName):
         files = [file for file in files if file.strip()]
     return (dir, files)
 
-def _toVecInDegreeRange(val, low, high):
-    low = low if low > 0 else low + 360
-    high = high if high < 360 else high - 360
-    return (val > low and val < high
-            if low < high
-            else val < (high + 360)
-                if val > low
-                else (val + 360) < (high + 360))
+
+@njit(inline='always')
+def inDegreeRange(val, low, high):
+    if low < high:
+        return val > low and val < high
+    else:
+        return val > low or val < high
     
 def _processRayShared(sharedRh, sharedRv, Rshape, sharedC, Cshape, Xh, Xv, iRay):
     Rh = np.frombuffer(sharedRh.get_obj(), dtype=np.complex128).reshape(Rshape)
@@ -220,31 +220,59 @@ class raxpolrkc(rkcfile):
             return
    
         censordB = 4
+        # azSpacing = azimuthBeamWidthDeg
+        # azSwath = azimuthBeamWidthDeg+(2*beamOverlapDeg)
+        
+        # azDiscrete = np.rint(az / azSpacing) * azSpacing
+        # azDiscrete[azDiscrete == 360] = 0
+        # azUnique = [azDiscrete[0]]
+        # currAz = azDiscrete[0]
+        # for azimuth in azDiscrete:
+        #     if not azimuth == currAz:
+        #         azUnique.append(azimuth)
+        #         currAz = azimuth
+        # azUnique = np.array(azUnique, dtype=np.float32)
+        
+        # repAz = np.tile(az, (len(azUnique),1))
+        # azTranspose = np.array([azUnique]).T
+        
+        # isInDegreeRange = np.vectorize(_toVecInDegreeRange)
+        
+        # azBool = isInDegreeRange(repAz, azTranspose-0.5*azSwath, azTranspose+0.5*azSwath)
+        # pulseBoundaries = []
+        # for swath in azBool:
+        #     pulseBoundaries.append([np.where(swath)[0][0], np.where(swath)[0][-1]])
+        # pulseBoundaries = np.array(pulseBoundaries, dtype=np.int32)
+        # middlePulses = np.rint(np.mean(pulseBoundaries, axis=1)).astype(np.int32)
+
         azSpacing = azimuthBeamWidthDeg
-        azSwath = azimuthBeamWidthDeg+(2*beamOverlapDeg)
-        
-        azDiscrete = np.rint(az / azSpacing) * azSpacing
-        azDiscrete[azDiscrete == 360] = 0
-        azUnique = [azDiscrete[0]]
-        currAz = azDiscrete[0]
-        for azimuth in azDiscrete:
-            if not azimuth == currAz:
-                azUnique.append(azimuth)
-                currAz = azimuth
-        azUnique = np.array(azUnique, dtype=np.float32)
-        
-        repAz = np.tile(az, (len(azUnique),1))
-        azTranspose = np.array([azUnique]).T
-        
-        isInDegreeRange = np.vectorize(_toVecInDegreeRange)
-        
-        azBool = isInDegreeRange(repAz, azTranspose-0.5*azSwath, azTranspose+0.5*azSwath)
-        pulseBoundaries = []
-        for swath in azBool:
-            pulseBoundaries.append([np.where(swath)[0][0], np.where(swath)[0][-1]])
-        pulseBoundaries = np.array(pulseBoundaries, dtype=np.int32)
-        middlePulses = np.rint(np.mean(pulseBoundaries, axis=1)).astype(np.int32)
-        
+        azSwath = azimuthBeamWidthDeg + (2 * beamOverlapDeg)
+
+        # Offset by half spacing so groups center between integers
+        azDiscrete = (np.rint(az / azSpacing) * azSpacing) + (0.5 * azSpacing)
+        azDiscrete = azDiscrete % 360
+
+        # Find unique consecutive values
+        mask = np.concatenate(([True], azDiscrete[1:] != azDiscrete[:-1]))
+        azUnique = azDiscrete[mask].astype(np.float32)
+
+        # Half swath, but clamp to not exceed the group's actual position in the array
+        halfSwath = 0.5 * azSwath
+        lowAz = azUnique - halfSwath
+        highAz = azUnique + halfSwath
+
+        # Clamp to data bounds (don't wrap around)
+        lowAz = np.maximum(lowAz, az[0])
+        highAz = np.minimum(highAz, az[-1])
+
+        # Now just find indices via searchsorted since we're not wrapping
+        pulseBoundaries = np.stack([
+            np.searchsorted(az, lowAz, side='left'),
+            np.searchsorted(az, highAz, side='right') - 1
+        ], axis=1).astype(np.int32)
+
+        middlePulses = np.rint(pulseBoundaries.mean(axis=1)).astype(np.int32)
+
         nRay = len(azUnique)
         
         timeDoubleArr =\

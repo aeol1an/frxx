@@ -2,7 +2,7 @@ import numpy as np
 import xarray as xr
 
 from numpy.typing import NDArray
-from typing import List, Self, Union
+from typing import List, Tuple, Union, cast
 from collections.abc import Sequence
 
 from .frxxData import _FILL_VALUES, frxxData
@@ -11,12 +11,19 @@ class IQ(frxxData['IQ']):
 	def __init__(self, ds: xr.Dataset | None = None):
 		super().__init__()
 		
-		self.requiredBoolsIQ = {
-			"iqdim": False,
-			"pol": False,
-			"noise": False,
-			"calibration": False
-		}
+		self.nonDataVars += [
+			"iqdim",
+			"pol",
+			"noise",
+			"Zcal",
+			"Dcal",
+			"Pcal",
+		]
+
+		self.requiredBools["iqdim"] = False
+		self.requiredBools["pol"] = False
+		self.requiredBools["noise"] = False
+		self.requiredBools["calibration"] = False
 
 		if ds is None:
 			#create new
@@ -34,7 +41,7 @@ class IQ(frxxData['IQ']):
 				"dtype": "int32",
 				"_FillValue": _FILL_VALUES["int32"]
 			}
-			self.requiredBoolsIQ["iqdim"] = True
+			self.requiredBools["iqdim"] = True
 
 		else:
 			self.ds = ds.copy(deep=False)
@@ -54,10 +61,10 @@ class IQ(frxxData['IQ']):
 			"_FillValue": _FILL_VALUES
 		}
 
-		self.requiredBoolsIQ["pol"] = True
+		self.requiredBools["pol"] = True
 
 	def setNoisedB(self, n0_dB: Union[NDArray[np.floating], Sequence[float]]):
-		if not self.requiredBoolsIQ["pol"]:
+		if not self.requiredBools["pol"]:
 			raise RuntimeError("Number of polarizations not set yet.")
 		if len(n0_dB) != len(self.ds["pol"]):
 			raise RuntimeError("Noise array length should equal number of polarizations.")
@@ -75,10 +82,10 @@ class IQ(frxxData['IQ']):
 			"_FillValue": _FILL_VALUES["float64"]
 		}
 
-		self.requiredBoolsIQ["noise"] = True
+		self.requiredBools["noise"] = True
 
 	def setCal(self, Zcal_db: Union[NDArray[np.floating], Sequence[float]], Dcal_db: float | None = None, Pcal_deg: float | None = None):
-		if not self.requiredBoolsIQ["pol"]:
+		if not self.requiredBools["pol"]:
 			raise RuntimeError("Number of polarizations not set yet.")
 		nPol = len(self.ds["pol"])
 		if len(Zcal_db) != nPol:
@@ -125,13 +132,13 @@ class IQ(frxxData['IQ']):
 				"_FillValue": _FILL_VALUES["float64"]
 			}
 
-		self.requiredBoolsIQ["calibration"] = True
+		self.requiredBools["calibration"] = True
 
 	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
 		if dims != ["pol", "range", "time", "iqdim"] or name != 'iq':
 			raise ValueError("Please only add iq data to this data structure!")
 		
-		if not all(self.requiredBoolsIQ.values()):
+		if not all(self.requiredBools.values()):
 			raise ValueError("Set all IQ object variables.")
 
 		self.ds[name] = self._constructDataArray(
@@ -150,18 +157,18 @@ class IQ(frxxData['IQ']):
 
 		#check iqdim
 		vars = ["iqdim"]
-		self.requiredBoolsIQ["iqdim"] = self._checkVars(vars)
+		self.requiredBools["iqdim"] = self._checkVars(vars)
 
 		#check pol
 		vars = ["pol"]
-		self.requiredBoolsIQ["pol"] = self._checkVars(vars)
+		self.requiredBools["pol"] = self._checkVars(vars)
 
 		#check noise
 		vars = ["noise"]
-		self.requiredBoolsIQ["noise"] = self._checkVars(vars)
+		self.requiredBools["noise"] = self._checkVars(vars)
 
 		#check calibration
-		self.requiredBoolsIQ["calibration"] = (
+		self.requiredBools["calibration"] = (
 			self._checkVars(["Zcal"])
 			and (self._checkVars(["Dcal", "Pcal"]) if len(self.ds["pol"]) == 2 else True)
 		)
@@ -176,12 +183,30 @@ class IQ(frxxData['IQ']):
 			return False
 		if not (self.ds.attrs["frxx_data_type"] == 'IQ'):
 			return False
-		if not all(self.requiredBoolsIQ.values()):
-			print("Some IQ specific required bools have not been set.")
-			return False
 		return True
 	
 	def concat(self, other: "IQ", newSweep: bool = True) -> "IQ":
 		merged = super()._concat(other, newSweep)
 		ret = IQ(merged)
 		return ret
+	def __add__(self, other: "IQ") -> "IQ":
+		return self.concat(other)
+	def __radd__(self, other: "int | IQ") -> "IQ":
+		if type(other) is int:
+			if other != 0:
+				raise ValueError("Cannot add with nonzero.")
+			return self
+		other = cast("IQ", other)
+		if type(other) is not type(self):
+			raise ValueError(f"LHS needs to be {type(self)}")
+		return other.__add__(self)
+	def __iadd__(self, other: "IQ") -> "IQ":
+		merged = super()._concat(other)
+		self.ds = merged
+		self.checkRequiredFields()
+		if not self.validateSelf():
+			raise RuntimeError("Something went wrong merging.")
+		return self
+	
+	def breakAt(self, index: int, newVol: bool = False, newSweep: bool = True) -> Tuple["IQ", "IQ"]:
+		pass
