@@ -2,15 +2,23 @@ import numpy as np
 from matplotlib import pyplot as plt
 from ..misc.coordConvert import cart2polar
 
-def rangeRings(ax = None, rint = 3, maxR = 30, xlims = (-30, 30), ylims = (-30, 30), n = 100):
+def rangeRings(ax, rint = None, xlim = (-30, 30), ylim = (-30, 30), n = 100, lw=1.5):
     if ax is None:
         ax = plt.gca()
+
+    xmax = max([abs(i) for i in xlim])
+    ymax = max([abs(i) for i in ylim])
+
+    maxR = np.sqrt(xmax**2 + ymax**2)
+
+    if rint is None:
+        rint = round(maxR/6)
 
     rings = np.arange(rint,maxR+rint,rint)
 
     xx, yy = np.meshgrid(np.linspace(-maxR-rint, maxR+rint, n), np.linspace(-maxR-rint, maxR+rint, n))
 
-    mask = (xx >= xlims[0]) & (xx <= xlims[1]) & (yy >= ylims[0]) & (yy <= ylims[1])
+    mask = (xx >= xlim[0]) & (xx <= xlim[1]) & (yy >= ylim[0]) & (yy <= ylim[1])
 
     rows, cols = np.where(mask)
     row_min, row_max = rows.min(), rows.max()
@@ -20,19 +28,28 @@ def rangeRings(ax = None, rint = 3, maxR = 30, xlims = (-30, 30), ylims = (-30, 
     yy = yy[row_min-1:row_max+2, col_min-1:col_max+2]
     rr, _ = cart2polar(xx, yy)
 
-    contour  = ax.contour(xx, yy, rr, rings, colors='k')
-    ax.clabel(contour, inline=True)
+    contour  = ax.contour(xx, yy, rr, rings, colors='k', linewidths=lw)
+    ax.clabel(contour, inline=True, fmt='%d km', fontsize=lw*8)
 
-def azimuthSpiderweb(ax = None, azint = 5, maxR = 30, xlims = (-30, 30), ylims = (-30, 30), n = 500):
+def azimuthSpiderweb(ax, azint = 20, xlim = (-30, 30), ylim = (-30, 30), n = 500, lw=1.5):
     if ax is None:
         ax = plt.gca()
+
+    xmax = max([abs(i) for i in xlim])
+    ymax = max([abs(i) for i in ylim])
+
+    maxR = np.sqrt(xmax**2 + ymax**2)
 
     azSpiderweb = np.arange(0, 360, azint)
     maxAz = azSpiderweb[-1]
 
-    xx, yy = np.meshgrid(np.linspace(-maxR-2, maxR+2, n), np.linspace(-maxR-2, maxR+2, n))
+    def concentratedLinspace(limit, n, power=2):
+        t = np.linspace(-1, 1, n)
+        return np.sign(t) * (np.abs(t) ** power) * limit
 
-    mask = (xx >= xlims[0]) & (xx <= xlims[1]) & (yy >= ylims[0]) & (yy <= ylims[1])
+    xx, yy = np.meshgrid(concentratedLinspace(maxR+2,n), concentratedLinspace(maxR+2,n))
+
+    mask = (xx >= xlim[0]) & (xx <= xlim[1]) & (yy >= ylim[0]) & (yy <= ylim[1])
 
     rows, cols = np.where(mask)
     row_min, row_max = rows.min(), rows.max()
@@ -46,5 +63,5 @@ def azimuthSpiderweb(ax = None, azint = 5, maxR = 30, xlims = (-30, 30), ylims =
     az[(az > (maxAz + fracLast)) & (az < (360 - fracLast))] = np.nan
     az[(az >= (360 - fracLast)) & (az <= 360)] -= 360
 
-    contour  = ax.contour(xx, yy, az, azSpiderweb, colors='k')
-    ax.clabel(contour, inline=True)
+    contour  = ax.contour(xx, yy, az, azSpiderweb, colors='k', linewidths=lw)
+    ax.clabel(contour, inline=True, fmt='%d$^{\\circ}$', fontsize=lw*8)
