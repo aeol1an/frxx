@@ -56,7 +56,7 @@ def bound(val, upper, lower):
     return val
 
 def dealiasOnce(fields, currentUnfolds):
-    if matplotlib.get_backend() != 'TkAgg':
+    if matplotlib.get_backend().lower() != 'tkagg':
         raise RuntimeError("Cannot run interactive display with current backend. "
                             "Switch to Tkagg with 'matplotlib.use(backend=\"TkAgg\")' "
                             "or if using jupyter, '%matplotlib tk.'")
@@ -239,7 +239,7 @@ def dealiasOnce(fields, currentUnfolds):
     return retFields, currentUnfoldCount, path, unfoldDirection
 
 def iSpectrumDealias(fields, nyquist):
-    if matplotlib.get_backend() != 'TkAgg':
+    if matplotlib.get_backend().lower() != 'tkagg':
         raise RuntimeError("Cannot run interactive display with current backend. "
                             "Switch to Tkagg with 'matplotlib.use(backend=\"TkAgg\")' "
                             "or if using jupyter, '%matplotlib tk.'")

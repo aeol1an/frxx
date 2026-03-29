@@ -5,27 +5,32 @@ from matplotlib.axes import Axes
 
 from typing import Sequence, Tuple
 
-def plotBackendless(figs: Sequence[Figure], ax: Axes | None = None, marginPx: int = 0, srcVertical: bool = False) -> Tuple[Figure, Axes]:
+def plotFigAsImg(figs: Sequence[Figure], ax: Axes | None = None, marginPx: int = 0, srcVertical: bool = False) -> Tuple[Figure, Axes]:
     numFigs = len(figs)
     if len(figs) < 1 or len(figs) > 4:
         raise ValueError("Too many or too little figs.")
+
+    backends = {type(fig.canvas).__name__ if fig.canvas is not None else None for fig in figs}
+    if len(backends) > 1:
+        raise ValueError(f"Figures have mismatched backends: {backends}")
+
+    from matplotlib import pyplot as plt
     
-    if ax is not None:
-        fig = ax.get_figure()
-        if fig is None:
-            raise ValueError("Axes has been removed from its figure")
-        FigureCanvas = type(fig.canvas)
-    else:
-        from matplotlib import pyplot as plt
+    if 'FigureCanvasBase' in backends:
         from matplotlib.backends.registry import backend_registry
         backendName = plt.get_backend()
         backendMod = backend_registry.load_backend_module(backendName)
         FigureCanvas = backendMod.FigureCanvas
+        canvases = [FigureCanvas(fig) for fig in figs]
+    else:
+        canvases = [fig.canvas for fig in figs]
 
+    if ax is None:
         fig = plt.figure(dpi=300)
         ax = fig.add_subplot(111)
+    else:
+        fig = ax.get_figure()
 
-    canvases = [FigureCanvas(fig) for fig in figs]
     for canvas in canvases:
         canvas.draw()
     imgs = [np.array(canvas.renderer.buffer_rgba()) for canvas in canvases]

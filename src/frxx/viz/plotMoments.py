@@ -1,9 +1,7 @@
 from matplotlib.figure import Figure
 import numpy as np
 
-import xarray as xr
-
-from typing import Union, Tuple, List, Sequence, cast
+from typing import Union, Tuple, cast
 Number = Union[int, float]
 
 import numpy as np
@@ -17,35 +15,43 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as pe
 
 
-def _plotPPI(
+def plotPPI(
     data: npt.NDArray,
     title: str, units: str,
     rangesKM: npt.NDArray, 
     azimuths: npt.NDArray, 
     elevation: Number, 
-    vertical: bool = False,
+    width: Number = 2,
+    aspectRatioWH: float = np.sqrt(2),
     xlim: Tuple[Number, Number] | None = None, 
     yCenter: Number | None = None,
     cmap: Union[str, Colormap] = 'pyart_Carbone42',
-    clims: Tuple[Number, Number, int] | None = None
+    clims: Tuple[Number, Number, int] | None = None,
+    backend: bool = True
 ):
     if not (clims is None):
         vmin, vmax, ticknum = clims
-        ticks = np.round(np.linspace(vmin, vmax, ticknum), 2)
+        ticks = np.linspace(vmin, vmax, ticknum)
+        oom = np.log10(np.abs(ticks).max())
+        rounding = 0 if oom >= 1 else  -(round(oom)-1)
+        ticks = np.round(ticks, rounding)
     else:
         vmin=None
         vmax=None
         ticks = None
+        
+    if width < 2:
+        raise ValueError("Minimum width of 2 needed for component space.")
 
-    a = np.sqrt(2)
-    if vertical:
-        aspectRatio = a
+    aspectRatio = 1/aspectRatioWH
+    scaleRate = 0.5
+    lm = 1 + scaleRate*(max(width, aspectRatio*width)/2-1) #width multiplier
+
+    if backend:
+        from matplotlib import pyplot as plt
+        fig = plt.figure(figsize=(width, width*aspectRatio), dpi=300)
     else:
-        aspectRatio = 1/a
-
-    width = 2
-
-    fig = Figure(figsize=(width, width*aspectRatio), dpi=300)
+        fig = Figure(figsize=(width, width*aspectRatio), dpi=300)
     ax = fig.add_axes((0, 0, 1, 1))
     
     xx, yy, _ = pyart.core.transforms.antenna_vectors_to_cartesian(
@@ -62,7 +68,7 @@ def _plotPPI(
         yCenter = np.mean(yy)
     yCenter = cast(Number, yCenter)
     dx = xlim[1] - xlim[0]
-    dy = 2/3 * dx
+    dy = aspectRatio * dx
     ylim = (yCenter - 0.5*dy, yCenter + 0.5*dy)
     
     plot = ax.pcolormesh(
@@ -73,37 +79,47 @@ def _plotPPI(
     ax.set_ylim(ylim)
     ax.axis('off')
     
-    textBorderWidth = 0.5
+    textBorderWidth = 0.5*lm
 
-    cbarAx = inset_axes(ax, width="90%", height="10%", loc='lower center', borderpad=0.25)
-    fig.colorbar(
+    cbarAx = inset_axes(ax, width=2*0.1*lm, height=aspectRatio*width*0.85, loc='center right', borderpad=0.25)
+    cb = fig.colorbar(
         plot,
         cax = cbarAx,
         ticks = ticks,
         extend="both",
-        orientation='horizontal'
+        orientation='vertical'
     )
-    cbarAx.tick_params(labelsize=5, direction='in', pad=-7.5, length = 2)
-    labels = [l for l in cbarAx.get_xticklabels() if l.get_text()]
+    cbarAx.tick_params(labelsize=4*lm, direction='in', length = 2, pad=0)
+    labels = [l for l in cbarAx.get_yticklabels() if l.get_text()]
     for i, label in enumerate(labels):
         label.set_color('black')
         label.set_path_effects([pe.withStroke(linewidth=textBorderWidth, foreground='white')])
         
+        _, y = label.get_position()
+        label.set_position((0.8, y))
+        label.set_ha('right')
+        
         if i == 0:
-            label.set_ha('left')  # left-align first label
+            label.set_va('bottom')
         elif i == len(labels) - 1:
-            label.set_ha('right')  # right-align last label
+            label.set_va('top')
     
-    unitsText = ax.text(0.01, 0.075, units, transform=ax.transAxes,
-                va='center', ha='left', fontsize=5, rotation=90, color='darkblue')
+    unitsText = cbarAx.text(
+        0.5, 1.06, units, transform=cbarAx.transAxes,
+        va='bottom', ha='center', fontsize=5*lm, color='darkblue'
+    )
     unitsText.set_path_effects([
         pe.withStroke(linewidth=textBorderWidth, foreground='white')
     ])
+    unitsText.set_zorder(10)
 
-    ax.set_title(title, size=8, y=0.85, ha='left', x=0.02, color='darkblue')
-    ax.title.set_path_effects([
+    fieldTxt = ax.text(
+        0.02, 0.98, title, transform=ax.transAxes,
+        ha='left', va="top", fontsize=8*lm, color='darkblue'
+    )
+    fieldTxt.set_path_effects([
         pe.withStroke(linewidth=textBorderWidth, foreground='white')
     ])
-    ax.title.set_zorder(10)
+    fieldTxt.set_zorder(10)
     
-    return fig, ax
+    return fig, ax, plot, cb
