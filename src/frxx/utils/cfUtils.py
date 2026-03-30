@@ -1,8 +1,9 @@
 import xarray as xr
 import numpy as np
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from typing import Tuple
 import warnings
 
 
@@ -85,4 +86,111 @@ def cfConcat(ds1: xr.Dataset, ds2: xr.Dataset, newSweep: bool = True) -> xr.Data
 		if type(merged) != xr.Dataset:
 			raise TypeError("Something went wrong. Somehow we have a dataarray.")
 
-		return merged	
+		return merged
+	
+def cfBreakAt(ds: xr.Dataset, index: int, newVol: bool = False) -> Tuple[xr.Dataset | None, xr.Dataset | None]:
+	n_times = len(ds["time"])
+
+	if index < 0 or index > n_times:
+		raise IndexError(
+			f"index {index} is out of bounds for time dimension of length {n_times}"
+		)
+
+	if index == 0:
+		warnings.warn("index is 0; first dataset will be None")
+		ds2 = ds.copy(deep=False)
+		if newVol:
+			ds2["volume_number"].data = ds2["volume_number"].data + 1
+		return None, ds2
+
+	if index == n_times:
+		warnings.warn(
+			f"index equals time dimension length ({n_times}); second dataset will be None"
+		)
+		return ds.copy(deep=False), None
+
+	starts = ds["sweep_start_ray_index"].values.astype(int)
+	ends = ds["sweep_end_ray_index"].values.astype(int)
+
+	clean = index in starts
+
+	if clean:
+		split_sweep_idx = int(np.where(starts == index)[0][0])
+
+		ds1 = ds.isel(
+			time=slice(0, index),
+			sweep=slice(0, split_sweep_idx)
+		).copy(deep=False)
+
+		ds2 = ds.isel(
+			time=slice(index, None),
+			sweep=slice(split_sweep_idx, None)
+		).copy(deep=False)
+
+		ds2["sweep_start_ray_index"].data = ds2["sweep_start_ray_index"].values - index
+		ds2["sweep_end_ray_index"].data = ds2["sweep_end_ray_index"].values - index
+
+	else:
+		matches = np.where((starts <= index) & (ends >= index))[0]
+		if len(matches) == 0:
+			raise ValueError(
+				f"index {index} does not fall within any sweep. "
+				"There may be a gap in sweep ray indices."
+			)
+		containing = int(matches[0])
+
+		ds1 = ds.isel(
+			time=slice(0, index),
+			sweep=slice(0, containing + 1)
+		).copy(deep=False)
+
+		ds2 = ds.isel(
+			time=slice(index, None),
+			sweep=slice(containing, None)
+		).copy(deep=False)
+
+		ds1_ends = ds1["sweep_end_ray_index"].values.copy()
+		ds1_ends[-1] = index - 1
+		ds1["sweep_end_ray_index"].data = ds1_ends
+
+		ds2["sweep_start_ray_index"].data = ds2["sweep_start_ray_index"].values - index
+		ds2["sweep_end_ray_index"].data = ds2["sweep_end_ray_index"].values - index
+
+		ds2_starts = ds2["sweep_start_ray_index"].values.copy()
+		ds2_starts[0] = 0
+		ds2["sweep_start_ray_index"].data = ds2_starts
+
+		ds2["sweep_number"].data = ds2["sweep_number"].values + 1
+
+	ds1 = ds1.assign_coords(sweep=np.arange(len(ds1["sweep"])))
+	ds2 = ds2.assign_coords(sweep=np.arange(len(ds2["sweep"])))
+
+	if newVol:
+		ds2["volume_number"].data = ds2["volume_number"].data + 1
+
+		original_start = datetime.fromisoformat(ds.attrs["start_datetime"])
+		ds2_time_offset = float(ds["time"].values[index])
+		ds2_start_dt = original_start + timedelta(seconds=ds2_time_offset)
+		ds1_end_dt = original_start + timedelta(seconds=float(ds["time"].values[index - 1]))
+
+		time_attrs = ds2["time"].attrs.copy()
+		ds2["time"].data = ds2["time"].values - ds2_time_offset
+		ds2["time"].attrs = time_attrs
+
+		if "units" in ds2["time"].attrs and "since" in ds2["time"].attrs["units"]:
+			unit_prefix = ds2["time"].attrs["units"].split("since")[0].strip()
+			ds2["time"].attrs["units"] = f"{unit_prefix} since {ds2_start_dt.isoformat()}"
+
+		ds1_end_str = ds1_end_dt.isoformat()
+		ds1.attrs["end_datetime"] = ds1_end_str
+		ds1.attrs["time_coverage_end"] = ds1_end_str
+		if "time_coverage_end" in ds1:
+			ds1["time_coverage_end"].data = np.array(ds1_end_str)
+
+		ds2_start_str = ds2_start_dt.isoformat()
+		ds2.attrs["start_datetime"] = ds2_start_str
+		ds2.attrs["time_coverage_start"] = ds2_start_str
+		if "time_coverage_start" in ds2:
+			ds2["time_coverage_start"].data = np.array(ds2_start_str)
+
+	return ds1, ds2

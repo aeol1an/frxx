@@ -7,11 +7,15 @@ Bounds = Annotated[List[List[int]], "Each sub-list must have two strictly increa
 									"and flattened list must be strictly increasing."]
 
 class sourceFile:
-	def __init__(self, pathJson: dict, indices: Bounds | None = None):
+	def __init__(self, pathJson: dict, indices: Bounds | None = None, count: int | None = None):
 		if pathJson["file"] == "hardware":
 			self.isHardware = True
+			if count is None or count < 0:
+				raise ValueError("Hardware sourceFile must have a non-negative count.")
+			self.count = count
 		else:
 			self.isHardware = False
+			self.count = None
 		if (not self.isHardware) and indices is None:
 			raise ValueError("Must pass indices if source isn't hardware.")
 		self.pathJson = pathJson
@@ -23,16 +27,18 @@ class sourceFile:
 	@staticmethod
 	def makeFromJson(sourceFileJson: dict) -> "sourceFile":
 		if sourceFileJson["file"] == "hardware":
-			return sourceFile({"file": "hardware"})
+			return sourceFile({"file": "hardware"}, count=sourceFileJson.get("count", 0))
 		return sourceFile({"file": sourceFileJson["file"]}, sourceFileJson["idx"])
 	
 	@staticmethod
 	def makeFromPathAndLength(filename: str | Path, nIdx: int | None):
 		if str(filename) == "hardware":
+			if nIdx is None:
+				raise ValueError("Hardware sourceFile must have a count (pass nIdx).")
 			sfJson = {
 				"file": "hardware",
 			}
-			return sourceFile(sfJson)
+			return sourceFile(sfJson, count=nIdx)
 		else:
 			if nIdx is None:
 				raise ValueError("Filename must be hardware if nIdx is none.")
@@ -60,6 +66,12 @@ class sourceFile:
 			prevB = b
 		return True
 
+	def nRays(self) -> int:
+		if self.isHardware:
+			return cast(int, self.count)
+		self.indices = cast(Bounds, self.indices)
+		return sum(b - a + 1 for a, b in self.indices)
+
 	def editPlatformPrefix(self, platform: str, prefix: str):
 		if self.isHardware:
 			raise ValueError("Can't change a file prefix on a hardware source.")
@@ -67,6 +79,11 @@ class sourceFile:
 		return self
 
 	def toJson(self):
+		if self.isHardware:
+			return {
+				"file": "hardware",
+				"count": self.count
+			}
 		return {
 			"file": self.pathJson,
 			"idx": self.indices
@@ -76,7 +93,7 @@ class sourceFile:
 		if self.isHardware != other.isHardware:
 			raise ValueError("Both need to be hardware or sourceFile.")
 		if self.isHardware:
-			return sourceFile({"file": "hardware"})
+			return sourceFile({"file": "hardware"}, count=cast(int, self.count) + cast(int, other.count))
 		
 		#else we have a real file and indices are Bounds
 		if not pathUtils.pathJsonEqual(self.pathJson, other.pathJson):
@@ -101,11 +118,18 @@ class sourceFile:
 		concatedSrc = self.concat(other)
 		self.pathJson = concatedSrc.pathJson
 		self.indices = concatedSrc.indices
+		self.count = concatedSrc.count
 		return self
 	
 	def breakAt(self, index: int) -> tuple["sourceFile", "sourceFile"]:
 		if self.isHardware:
-			raise ValueError("Cannot break a hardware sourceFile.")
+			self.count = cast(int, self.count)
+			if index <= 0 or index >= self.count:
+				raise ValueError(f"Index {index} is not within valid break range (1 to {self.count - 1}).")
+			return (
+				sourceFile({"file": "hardware"}, count=index),
+				sourceFile({"file": "hardware"}, count=self.count - index)
+			)
 		
 		self.indices = cast(Bounds, self.indices)
 		

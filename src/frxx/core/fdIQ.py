@@ -235,7 +235,9 @@ class IQ(frxxData):
 
 		for fileToAdd in otherFiles:
 			if fileToAdd.isHardware:
-				if not selfFiles[-1].isHardware:
+				if selfFiles[-1].isHardware:
+					selfFiles[-1] += fileToAdd
+				else:
 					selfFiles.append(fileToAdd)
 			else:
 				lastFile = selfFiles[-1]
@@ -248,9 +250,8 @@ class IQ(frxxData):
 					for searchFile in selfFiles[:-1]:
 						if not searchFile.isHardware and pathUtils.pathJsonEqual(fileToAdd.pathJson, searchFile.pathJson):
 							raise RuntimeError("Source file to add was found in the non-last position. "
-											   "Merge is for immediate concatenations!")
+											"Merge is for immediate concatenations!")
 					selfFiles.append(fileToAdd)
-
 
 		selfSfJson["files"] = [f.toJson() for f in selfFiles]
 		merged.attrs["source_files"] = json.dumps(selfSfJson, indent='\t')
@@ -277,5 +278,69 @@ class IQ(frxxData):
 			raise RuntimeError("Something went wrong merging.")
 		return self
 	
-	def breakAt(self, index: int, newVol: bool = False, newSweep: bool = True) -> Tuple["IQ", "IQ"]:
-		pass
+	def breakAt(self, index: int, newVol: bool = False) -> Tuple["IQ", "IQ"]:
+		ds1, ds2 = cfUtils.cfBreakAt(self.ds, index, newVol)
+		if (ds1 is None) or (ds2 is None):
+			raise ValueError("Index must be 1 to len(ds)-1.")
+		
+		sfJson = json.loads(self.ds.attrs["source_files"])
+		files = [sourceFile.makeFromJson(f) for f in sfJson["files"]]
+
+		ds1Files: List[sourceFile] = []
+		ds2Files: List[sourceFile] = []
+		accumulated = 0
+
+		for f in files:
+			nRays = f.nRays()
+
+			if accumulated + nRays <= index:
+				ds1Files.append(f)
+			elif accumulated >= index:
+				ds2Files.append(f)
+			else:
+				# Break falls within this file
+				remaining = index - accumulated
+				if f.isHardware:
+					left, right = f.breakAt(remaining)
+				else:
+					count = 0
+					originalIndex = None
+					for start, end in f.indices:
+						pairSize = end - start + 1
+						if count + pairSize >= remaining:
+							originalIndex = start + (remaining - count)
+							break
+						count += pairSize
+					left, right = f.breakAt(originalIndex)
+				ds1Files.append(left)
+				ds2Files.append(right)
+
+			accumulated += nRays
+
+		# Validate ray counts match time dimension lengths
+		ds1RayCount = sum(f.nRays() for f in ds1Files)
+		ds2RayCount = sum(f.nRays() for f in ds2Files)
+		if ds1RayCount != ds1.sizes["time"]:
+			raise RuntimeError(f"ds1 source file ray count ({ds1RayCount}) "
+							f"does not match time dimension ({ds1.sizes['time']}).")
+		if ds2RayCount != ds2.sizes["time"]:
+			raise RuntimeError(f"ds2 source file ray count ({ds2RayCount}) "
+							f"does not match time dimension ({ds2.sizes['time']}).")
+
+		ds1SfJson = {**sfJson, "files": [f.toJson() for f in ds1Files]}
+		ds2SfJson = {**sfJson, "files": [f.toJson() for f in ds2Files]}
+
+		ds1.attrs["source_files"] = json.dumps(ds1SfJson, indent='\t')
+		ds2.attrs["source_files"] = json.dumps(ds2SfJson, indent='\t')
+
+		IQ1 = IQ(ds1)
+		IQ1.checkRequiredFields()
+		if not IQ1.validateSelf():
+			raise RuntimeError("Something went wrong breaking ds1.")
+		
+		IQ2 = IQ(ds2)
+		IQ2.checkRequiredFields()
+		if not IQ2.validateSelf():
+			raise RuntimeError("Something went wrong breaking ds2.")
+		
+		return IQ1, IQ2
