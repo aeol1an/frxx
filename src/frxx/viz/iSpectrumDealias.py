@@ -71,7 +71,7 @@ def dealiasOnce(fields, currentUnfolds):
     plt.rcParams['keymap.back'].remove('left')
     plt.rcParams['keymap.forward'].remove('right')
     
-    fig = plt.figure(figsize=[8, 6])
+    fig = plt.figure(figsize=(8, 6))
     plt.pcolormesh(xx, yy, field, cmap='pyart_Carbone42')
     plt.title("Make selection by double clicking. Double right click to close polygon.")
     plt.xlim([-0.1*nx, nx+0.1*nx])
@@ -257,7 +257,7 @@ def iSpectrumDealias(fields, nyquist):
         
         xx, yy = np.meshgrid(range(nx), range(ny))
         
-        fig = plt.figure(figsize=[8, 6])
+        fig = plt.figure(figsize=(8, 6))
         plt.pcolormesh(xx, yy, field, cmap='pyart_Carbone42')
         plt.xlim([-0.1*nx, nx+0.1*nx])
         plt.ylim([-0.1*ny, ny+0.1*ny])

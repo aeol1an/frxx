@@ -3,6 +3,8 @@ import requests
 import time
 from pyart.core import cartesian_to_geographic_aeqd
 
+from numpy.typing import NDArray
+
 def cart2polar(x: float, y: float):
     r = np.sqrt(x**2 + y**2)
     az = -np.arctan2(y, x) + (np.pi / 2)
@@ -56,7 +58,7 @@ def getElevations(
     return elevations
         
 
-def beamHeightWithRadarHeight(rKm, az, el, radarHtM, radarLat, radarLon):
+def beamHeightWithRadarHeight(rKm, az, el, radarHtM, radarLat, radarLon) -> NDArray:
     radarLocEl = getElevations(np.array([radarLat]), np.array([radarLon]))
     
     theta_e = np.deg2rad(el)

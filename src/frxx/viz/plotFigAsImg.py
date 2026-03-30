@@ -5,7 +5,7 @@ from matplotlib.axes import Axes
 
 from typing import Sequence, Tuple
 
-def plotFigAsImg(figs: Sequence[Figure], ax: Axes | None = None, marginPx: int = 0, srcVertical: bool = False) -> Tuple[Figure, Axes]:
+def plotFigAsImg(figs: Sequence[Figure], ax: Axes | None = None, marginPx: int = 0, srcVertical: bool = False) -> Tuple[Figure | None, Axes]:
     numFigs = len(figs)
     if len(figs) < 1 or len(figs) > 4:
         raise ValueError("Too many or too little figs.")

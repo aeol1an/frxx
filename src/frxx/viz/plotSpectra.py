@@ -14,7 +14,7 @@ from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as pe
 
-from ..misc.coordConvert import beamHeightWithRadarHeight
+from ..utils.coordConvert import beamHeightWithRadarHeight
 
 cacheKey = None
 cachedHt = None
@@ -91,6 +91,8 @@ def plotRangeDoppler(
         cachedHt = htTicks
     
     ax2.tick_params(axis='both', labelsize=4*lm, length=2, direction='in', pad=1)
+    if htTicks is None:
+        raise ValueError("Something went wrong with htTicks caching.")
     if np.mean(htTicks) < 0.1:
         ax2.set_yticks(rTicks, np.round(htTicks*1000, decimals=2))
         ax2.set_ylim(ax.get_ylim())
