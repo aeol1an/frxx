@@ -18,7 +18,7 @@ class sourceFile:
 			self.count = None
 		if (not self.isHardware) and indices is None:
 			raise ValueError("Must pass indices if source isn't hardware.")
-		self.pathJson = pathJson
+		self.pathJson = pathJson["file"]
 		self.indices = indices
 		if not self.verifyIdx():
 			raise ValueError("Each sub-list must have two non-decreasing elements, "
@@ -75,6 +75,8 @@ class sourceFile:
 	def editPlatformPrefix(self, platform: str, prefix: str):
 		if self.isHardware:
 			raise ValueError("Can't change a file prefix on a hardware source.")
+		
+		self.pathJson = cast(dict, self.pathJson)
 		self.pathJson = pathUtils.editPathJsonPrefix(self.pathJson, platform, prefix)
 		return self
 
@@ -94,8 +96,10 @@ class sourceFile:
 			raise ValueError("Both need to be hardware or sourceFile.")
 		if self.isHardware:
 			return sourceFile({"file": "hardware"}, count=cast(int, self.count) + cast(int, other.count))
-		
+
 		#else we have a real file and indices are Bounds
+		self.pathJson = cast(dict, self.pathJson)
+		other.pathJson = cast(dict, other.pathJson)
 		if not pathUtils.pathJsonEqual(self.pathJson, other.pathJson):
 			raise ValueError("Attempting to merge indices in files not equal.")
 		self.indices = cast(Bounds, self.indices)
@@ -107,7 +111,7 @@ class sourceFile:
 				mergedIdx[-1][1] = max(mergedIdx[-1][1], end)
 			else:
 				mergedIdx.append([start, end])
-		return sourceFile(self.pathJson, mergedIdx)
+		return sourceFile({"file": self.pathJson}, mergedIdx)
 	def __add__(self, other):
 		return self.concat(other)
 	def __radd__(self, other):
@@ -155,7 +159,7 @@ class sourceFile:
 				leftIndices.append([start, index - 1])
 				rightIndices.append([index, end])
 		
-		left = sourceFile(self.pathJson, leftIndices)
-		right = sourceFile(self.pathJson, rightIndices)
+		left = sourceFile({"file": self.pathJson}, leftIndices)
+		right = sourceFile({"file": self.pathJson}, rightIndices)
 		
 		return left, right

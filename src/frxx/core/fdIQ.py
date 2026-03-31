@@ -240,18 +240,23 @@ class IQ(frxxData):
 				else:
 					selfFiles.append(fileToAdd)
 			else:
+				fileToAdd.pathJson = cast(dict, fileToAdd.pathJson)
 				lastFile = selfFiles[-1]
-				if not lastFile.isHardware and pathUtils.pathJsonEqual(fileToAdd.pathJson, lastFile.pathJson):
-					#if its the last file (we merge)
-					selfFiles[-1] += fileToAdd
-				else:
-					#if we need to append to list of files
-					# check if it exists earlier (which would be an error)
-					for searchFile in selfFiles[:-1]:
-						if not searchFile.isHardware and pathUtils.pathJsonEqual(fileToAdd.pathJson, searchFile.pathJson):
-							raise RuntimeError("Source file to add was found in the non-last position. "
-											"Merge is for immediate concatenations!")
-					selfFiles.append(fileToAdd)
+				if not lastFile.isHardware:
+					lastFile.pathJson = cast(dict, lastFile.pathJson) 
+					if pathUtils.pathJsonEqual(fileToAdd.pathJson, lastFile.pathJson):
+						#if its the last file (we merge)
+						selfFiles[-1] += fileToAdd
+					else:
+						#if we need to append to list of files
+						# check if it exists earlier (which would be an error)
+						for searchFile in selfFiles[:-1]:
+							if not searchFile.isHardware:
+								searchFile.pathJson = cast(dict, searchFile.pathJson) 
+								if pathUtils.pathJsonEqual(fileToAdd.pathJson, searchFile.pathJson):
+									raise RuntimeError("Source file to add was found in the non-last position. "
+													"Merge is for immediate concatenations!")
+						selfFiles.append(fileToAdd)
 
 		selfSfJson["files"] = [f.toJson() for f in selfFiles]
 		merged.attrs["source_files"] = json.dumps(selfSfJson, indent='\t')
