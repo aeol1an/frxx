@@ -495,7 +495,7 @@ class frxxData(ABC):
 		self.optionalBools["addtl_comments"] = True
 
 	@abstractmethod
-	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
+	def addDataField(self, name: str, data, dims: List[str], attrs, encoding):
 		pass
 	def _incDataCounts(self):
 		self.numDataVars += 1

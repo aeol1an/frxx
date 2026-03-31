@@ -66,7 +66,7 @@ class IQ(frxxData):
 		}
 		self.ds["pol"].encoding = {
 			"dtype": "int32",
-			"_FillValue": _FILL_VALUES
+			"_FillValue": _FILL_VALUES["int32"]
 		}
 
 		self.requiredBools["pol"] = True
@@ -213,8 +213,8 @@ class IQ(frxxData):
 		self.requiredBools["source_file"] = self._checkAttrs(attrs)
 
 		#check data
-		vars = ["iq"]
-		self.requiredBools["data"] = self._checkVars(vars, False)
+		# vars = ["iq"]
+		# self.requiredBools["data"] = self._checkVars(vars, False)
 
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()
