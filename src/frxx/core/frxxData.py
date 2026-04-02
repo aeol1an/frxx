@@ -71,7 +71,6 @@ class frxxData(ABC):
 			"pulse_width": False,
 			"prt": False,
 			"wavelength": False,
-			"source_file": False,
 		}
 
 		self.optionalBools = {

@@ -128,9 +128,12 @@ class spectra(frxxData):
 		
 		maxLen = max(lens)
 		lens = np.array(lens, dtype=np.int32)
-		if ("velocity" not in self.ds) or (maxLen > self.ds["velocity"]):
+		if (velNotPresent := ("velocity" not in self.ds)) or (maxLen > len(self.ds["velocity"])):
 			#hopefully this fills with NaNs. Prayge.
-			self.ds = self.ds.assign_coords(pol=np.arange(maxLen))
+			if velNotPresent:
+				self.ds = self.ds.assign_coords(velocity=np.arange(maxLen))
+			else:
+				self.ds = self.ds.reindex(velocity=np.arange(maxLen), fill_value=np.nan)
 			self.ds["velocity"].attrs = {
 				"long_name": "doppler_velocity_spectral_components",
 				"units": "integer spectral component indices"
@@ -152,6 +155,17 @@ class spectra(frxxData):
 			dims = dims,
 			attrs = attrs,
 			encoding = encoding
+		)
+		self.ds[f"{name}_vlen"] = self._constructDataArray(
+			data = np.array(lens, dtype=np.int32),
+			dims = ["time"],
+			attrs = {
+				"comment": f"Lenth of velocity axis for given ray of varible {name}."
+			},
+			encoding = {
+				"dtype": "int32",
+				"_FillValue": _FILL_VALUES["int32"]
+			}
 		)
 		self._incDataCounts()
 
