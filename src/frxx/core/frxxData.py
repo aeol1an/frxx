@@ -618,3 +618,47 @@ class frxxData(ABC):
 			print("Some required bools have not been set.")
 			return False
 		return True
+	
+	@property
+	def time(self):
+		return np.ascontiguousarray(self.ds["time"].data)
+	
+	@property
+	def range(self):
+		return np.ascontiguousarray(self.ds["range"].data)
+
+	@property
+	def az(self):
+		return np.ascontiguousarray(self.ds["azimuth"].data)
+	
+	@property
+	def el(self):
+		return np.ascontiguousarray(self.ds["elevation"].data)
+	
+	@property
+	def pw(self):
+		return np.ascontiguousarray(self.ds["pulse_width"].data)
+	
+	@property
+	def prt(self):
+		return np.ascontiguousarray(self.ds["prt"].data)
+	
+	@property
+	def wavelength(self):
+		return np.ascontiguousarray(self.ds["wavelength"].data)
+	
+	@property
+	def va(self):
+		return np.ascontiguousarray(self.ds["nyquist_velocity"].data)
+	
+	@property
+	def pos(self):
+		return {
+			"lat": float(self.ds["latitude"].values),
+			"lon": float(self.ds["longitude"].values),
+			"alt": float(self.ds["altitude"].values)
+		}
+	
+	@property
+	def fixedAngle(self):
+		return np.ascontiguousarray(self.ds["fixed_angle"].data)

@@ -2,7 +2,7 @@ import numpy as np
 from numba import njit, prange
 
 @njit(parallel=True, cache=True)
-def _computeSingleSpectra(VH, VV, w, R0H, R0V, M, NFT, B, r):
+def _computeSingleSpectrum(VH, VV, w, R0H, R0V, M, NFT, B, r):
     CX_left = 0.5*(VH[0]/VH[-1] + VV[0]/VV[-1])
     CX_right = 0.5*(VH[-1]/VH[0] + VV[-1]/VV[0])
     
@@ -51,7 +51,7 @@ def _computeMultpleSpectra(
     SX = np.full((NK, NFT), np.nan + np.nan * 1j)
     
     for i in prange(NK):
-        SHi, SVi, SXi = _computeSingleSpectra(
+        SHi, SVi, SXi = _computeSingleSpectrum(
             VH[i,:], VV[i,:], w,
             np.mean(VH[i,:] * np.conjugate(VH[i,:])),
             np.mean(VV[i,:] * np.conjugate(VV[i,:])),
@@ -208,5 +208,4 @@ def subsetIQ(iqh, iqv, iaz, azVals, boundaries, iranges, swathPulses = None, K =
         }
         
         
-    
     return tV, iranges[1]+1 - iranges[0], swathPulses

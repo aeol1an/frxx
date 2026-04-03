@@ -30,7 +30,7 @@ def _alignSweep(ds1: xr.Dataset, ds2: xr.Dataset) -> xr.Dataset:
 
 	return ds2
 
-def cfConcat(ds1: xr.Dataset, ds2: xr.Dataset, newSweep: bool = True) -> xr.Dataset:
+def cfConcat(ds1: xr.Dataset, ds2: xr.Dataset, newSweep: bool = False) -> xr.Dataset:
 	if ds1["volume_number"].data.item() != ds2["volume_number"].data.item():
 		warning = ("volume_number in both files should be equal before concatenation "
 						"to prevent second volume number from being overwritten")

@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 
-@njit('boolean(float64, float64, float64)',inline='always', cache=True)
+@njit('boolean(float64, float64, float64)', inline='always', cache=True)
 def inDegreeRange(val, low, high):
     if low < high:
         return val > low and val < high

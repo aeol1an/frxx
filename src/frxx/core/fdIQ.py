@@ -224,8 +224,8 @@ class IQ(frxxData):
 			return False
 		return True
 	
-	def concat(self, other: "IQ", newSweep: bool = True) -> "IQ":
-		merged = cfUtils.cfConcat(self.ds, other.ds, newSweep)
+	def concat(self, other: "IQ") -> "IQ":
+		merged = cfUtils.cfConcat(self.ds, other.ds, False)
 
 		selfSfJson = json.loads(self.ds.attrs["source_files"])
 		otherSfJson = json.loads(other.ds.attrs["source_files"])
@@ -349,3 +349,20 @@ class IQ(frxxData):
 			raise RuntimeError("Something went wrong breaking ds2.")
 		
 		return IQ1, IQ2
+	
+	@property
+	def iq(self):
+		if (len(self.ds["pol"]) == 2):
+			return np.ascontiguousarray(self.ds["iq"].data).view(np.complex64).squeeze()
+		else:
+			return np.ascontiguousarray(self.ds["iq"].data[0]).view(np.complex64).squeeze()
+	
+	@property
+	def iqh(self):
+		return np.ascontiguousarray(self.ds["iq"].data[0]).view(np.complex64).squeeze()
+	
+	@property
+	def iqv(self):
+		if (len(self.ds["pol"]) != 2):
+			raise ValueError("Vertical channel iq only availible for dual-pol data.")
+		return np.ascontiguousarray(self.ds["iq"].data[1]).view(np.complex64).squeeze()
