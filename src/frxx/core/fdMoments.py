@@ -15,6 +15,7 @@ class moments(frxxData):
 		self.requiredBools["ray_start_end"] = False
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["pol"] = False
+		self.requiredBools["SNR_threshold"] = False
 
 		if ds is None:
 			self.ds.attrs["frxx_data_type"] = "moments"
@@ -37,9 +38,9 @@ class moments(frxxData):
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
 
-	def setPulseBoundaries(self, boundaries: NDArray[np.int32]):
-		if (boundaries.dtype != np.int32):
-			raise TypeError("Expected array of np.int32")
+	def setPulseBoundaries(self, boundaries: NDArray[np.int64]):
+		if (boundaries.dtype != np.int64):
+			raise TypeError("Expected array of np.int64")
 		if not self.requiredBools["time"]:
 			raise RuntimeError("Need to call setTime() before this function.")
 		if boundaries.shape != (len(self.ds["time"]), len(self.ds["ray_start_end"])):
@@ -54,8 +55,8 @@ class moments(frxxData):
 			}
 		)
 		self.ds["pulse_boundaries"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
+			"dtype": "int64",
+			"_FillValue": _FILL_VALUES["int64"]
 		}
 
 		self.requiredBools["pulse_boundaries"] = True
@@ -73,16 +74,38 @@ class moments(frxxData):
 
 		self.requiredBools["pol"] = True
 
-	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
-		if dims != ["time", "range"]:
-			raise ValueError("Moment data must be in [\"time\", \"range\"]!")
+	def setSNRThreshold(self, snrh: float, snrv: float | None = None):
+		if not self.requiredBools["pol"]:
+			raise RuntimeError("Number of polarizations not set yet.")
+		if not isinstance(snrh, (int, float)):
+			raise TypeError(f"Expected Number for snrh, got {type(snrh).__name__}")
+		if not isinstance(snrv, (int, float, type(None))):
+			raise TypeError(f"Expected Number or None for snrv, got {type(snrh).__name__}")
+		if snrv is None and len(self.ds["pol"]) == 2:
+			raise ValueError(f"Dual-pol was set, but only snrh threshold set. Pass 0 if no snrv threshold.")
 		
+		self.ds["SNR_threshold"] = xr.DataArray(
+			data = [snrh, snrv],
+			dims = ["pol"],
+			attrs = {
+				"long_name": "signal_to_noise_thresholds_for_spectral_masking",
+                "comment": "First and last pulse index in a ray in corresponding frxxIQ file."
+			}
+		)
+		self.ds["SNR_threshold"].encoding = {
+			"dtype": "float32",
+			"_FillValue": _FILL_VALUES["float32"]
+		}
+
+		self.requiredBools["SNR_threshold"] = True
+
+	def addDataField(self, name: str, data: NDArray, attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all moment object variables.")
 
 		self.ds[name] = self._constructDataArray(
 			data = data,
-			dims = dims,
+			dims = ["time", "range"],
 			attrs = attrs,
 			encoding = encoding
 		)

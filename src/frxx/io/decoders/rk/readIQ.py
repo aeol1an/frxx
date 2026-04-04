@@ -908,7 +908,7 @@ def readIQ(
         source = 'RadarKit/IQ'
     )
     ret.setVolume(0)
-    ret.setTime(timeDoubleArr, tzStr)
+    ret.setTime(timeDoubleArr, timeDoubleArr[0], timeDoubleArr[-1], tzStr)
     ret.setSweep(0)
     ret.setRange(rr.astype(np.float32), True)
     ret.setPosition(

@@ -3,35 +3,248 @@ from ...core.frxxData import _FILL_VALUES
 
 from ...utils import findPulseBoundaries
 
+from typing import Tuple, Callable
+
 import numpy as np
+
+from numba import njit, prange
 
 import sys
 
-def calculateDualPolPPI(iq: IQ, azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0) -> moments | None:
+@njit(
+	'complex128[:](complex128[:,:], optional(complex128[:,:]), int32)',
+	parallel=True, inline='always', cache=True
+)
+def correlation(X1, X2=None, lag=0):
+	if X2 is None:
+		X2 = X1
+	if X1.shape != X2.shape:
+		raise ValueError("Two array shapes not equal.")
+	
+	_, nt = X1.shape
+
+	if lag == 0:
+		prod = X1 * np.conjugate(X2)
+	elif lag > 0:
+		prod = X1[:,lag:] * np.conjugate(X2[:,:-lag])
+	else:
+		prod = X1[:,:lag] * np.conjugate(X2[:,-lag:])
+		
+	return np.sum(prod, axis=1) / nt
+
+@njit(
+	'Tuple(complex128[:,:,:], complex128[:,:], complex128[:,:])'
+	'(complex128[:,:], complex128[:,:], int32[:,:], int32[:])', 
+	parallel=True, cache=True
+)
+def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1])):
+	#nRange, nBigTime, nLags
+	nRange = iqh.shape[0]
+	nBigTime = pulseBoundaries.shape[0]
+	nLags = lags.shape[0]
+
+	RH = np.empty((nBigTime, nRange, nLags), dtype=np.complex128)
+	RV = np.empty((nBigTime, nRange), dtype=np.complex128)
+	RX = np.empty((nBigTime, nRange), dtype=np.complex128)
+
+	for t in prange(nBigTime):
+		RV[t,:] = correlation(iqv, iqv, 0)
+		RX[t,:] = correlation(iqh, iqv, 0)
+		for l in prange(nLags):
+			RH[t,:,l] = correlation(iqh, iqh, lags[l])
+
+	return RH, RV, RX
+
+def _averageByGstep(data, gstep: int):
+	if gstep == 1:
+		return data
+	
+	t, r = (data.shape[0], data.shape[1])
+	fullGroups = r//gstep
+	if fullGroups > 0:
+		mainPart = data[:,:fullGroups*gstep,...]\
+			.reshape((t, fullGroups, gstep, *data.shape[2:])).mean(axis=2)
+	else:
+		mainPart = np.array([]).reshape((t, 0, *data.shape[2:]))
+		
+	if r % gstep != 0:
+		remainder = data[:,fullGroups*gstep:,...].mean(axis=1)
+		result = np.concatenate((mainPart, remainder), axis=1)
+	else:
+		result = mainPart
+		
+	return result
+
+def calculateDualPolPPIACF(
+		iq: IQ, 
+		azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0, gstep: int = 1,
+		SNRHthresholddB: float = 0, SNRVthresholddB: float = 0,
+		flipVel: bool = False
+) -> moments:
 	if not ("iq" in iq.ds):
 		raise ValueError("IQ data structure is not complete yet.")
 	if len(iq.ds["sweep"]) != 1:
 		raise ValueError("IQ data should have one sweep per Dataset.")
 	
-	c = 299792458.0
+	va = iq.va[0]
 
-	iqh, iqv = (iq.iqh, iq.iqv)
+	iqh, iqv = (iq.iqh.astype(np.complex128), iq.iqv.astype(np.complex128))
 	az = iq.az
 	el = iq.el
 
+	time = iq.time
 	r = iq.range
 	rkm = r/1000.
 	nr = len(r)
 
+	zcalh, zcalv = tuple(iq.ds["Zcal"].values)
+	dcal = float(iq.ds["Dcal"].values)
+	pcal = float(iq.ds["Pcal"].values)
+
+	N0h, N0v = tuple(iq.ds["noise"].values)
+
 	if (len(np.unique(np.rint(el))) > len(np.unique(np.rint(az))))\
 		and (len(np.unique(np.rint(el))) > 5):
 		
-		print("Elevation varies by more than 5 degrees. This might be an RHI. Returning None.", file=sys.stderr)
-		return
+		raise ValueError("Elevation varies by more than 5 degrees. This might be an RHI")
 	
 	azSpacing = azSpacingDeg
-	azSwath = azSpacing + (2 * beamOverlapDeg)
 
 	pulseBoundaries, azUnique = findPulseBoundaries(az, azSpacing, beamOverlapDeg)
+	middlePulses = np.rint(pulseBoundaries.mean(axis=1)).astype(np.int32)
 
-	
+	mAz = az[middlePulses]
+	mEl = el[middlePulses]
+	mTime = time[middlePulses]
+
+	R = processRaysACF(iqh, iqv, pulseBoundaries, np.array([0, 1]))
+
+	Rh, Rv, Rx = tuple(_averageByGstep(r, gstep) for r in R)
+
+	N0hLin = 10**(0.1 * N0h)
+	N0vLin = 10**(0.1 * N0v)
+	SNRHthreshLin = 10**(0.1 * SNRHthresholddB)
+	SNRVthreshLin = 10**(0.1 * SNRVthresholddB)
+
+	Sh = np.abs(Rh[:,:,0]) - N0hLin
+	Sv = np.abs(Rv) - N0vLin
+
+	Sh[(Sh / N0hLin) <= SNRHthreshLin] = np.nan
+	Sv[(Sv / N0vLin) <= SNRVthreshLin] = np.nan
+
+	DBZ = 10*np.log10(Sh*(rkm**2)) + zcalh
+
+	if flipVel:
+		s = -1
+	else:
+		s = 1
+	VEL = s * -va / np.pi * np.angle(Rh[...,1])
+
+	WIDTH = np.sqrt(2) * va / np.pi * np.sqrt(np.abs((np.log(Sh / np.abs(Rh[:,:,1])))))
+
+	ZDR = 10*np.log10(Sh/Sv) + dcal
+
+	PHIDP = np.angle(Rx)/np.pi*180 + pcal
+	PHIDP[PHIDP < -180] += 360
+	PHIDP[PHIDP > 180] -= 360
+
+	RHOHV = np.abs(Rx) / np.sqrt(Sh*Sv)
+
+	SNRH = 10*np.log10(Sh / N0hLin)
+	SNRV = 10*np.log10(Sv / N0vLin)
+
+	m = moments()
+
+	m.setInstrument(
+		name = iq.ds.attrs["instrument_name"],
+		institution = iq.ds.attrs["institution"],
+		source = "frxx"
+	)
+	m.setVolume(iq.vol)
+	m._cpyTime(iq, mTime)
+	m.setSweep(iq.sweep)
+	m.setRange(r, True)
+	m.setPosition(*iq.pos.values())
+	m.setScanningStrategy("ppi", iq.fixedAngle)
+	m.setAzimuth(mAz)
+	m.setElevation(mEl)
+	m.setPulseWidthSeconds(iq.pw)
+	m.setPrtSeconds(iq.prt)
+	m.setWavelengthMeters(iq.wavelength)
+	m.setPol(2)
+	m.setSNRThreshold(SNRHthresholddB, SNRVthresholddB)
+	m.setPulseBoundaries(pulseBoundaries)
+
+	encoding = {
+		"dtype": "int16",
+		"_FillValue": _FILL_VALUES["int16"],
+		"scale_factor": 0.01,
+		"add_offset": 0.0
+	}
+
+	m.addDataField('DBZ', DBZ, encoding=encoding,
+		attrs={
+			"long_name": "reflectivity",
+			"standard_name": "equivalent_reflectivity_factor",
+			"units": "dBZ",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('VEL', VEL, encoding=encoding,
+		attrs={
+			"long_name": "doppler_velocity",
+			"standard_name": "radial_velocity_of_scatterers_away_from_instrument",
+			"units": "m/s",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('WIDTH', WIDTH, encoding=encoding,
+		attrs={
+			"long_name": "spectrum_width",
+			"standard_name": "doppler_spectrum_width",
+			"units": "m/s",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('ZDR', ZDR, encoding=encoding,
+		attrs={
+			"long_name": "differential_reflectivity",
+			"standard_name": "log_differential_reflectivity_hv",
+			"units": "dB",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('PHIDP', PHIDP, encoding=encoding,
+		attrs={
+			"long_name": "differential_phase",
+			"standard_name": "differential_phase_hv",
+			"units": "degrees",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('RHOHV', RHOHV, encoding=encoding,
+		attrs={
+			"long_name": "cross_correlation_ratio",
+			"standard_name": "cross_correlation_ratio_hv",
+			"units": "unitless",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('SNRH', SNRH, encoding=encoding,
+		attrs={
+			"long_name": "horizontal_channel_signal_to_noise_ratio",
+			"standard_name": "signal_to_noise_ratio_h",
+			"units": "dB",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	m.addDataField('SNRV', SNRV, encoding=encoding,
+		attrs={
+			"long_name": "vertical_channel_signal_to_noise_ratio",
+			"standard_name": "signal_to_noise_ratio_v",
+			"units": "dB",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+
+	return m

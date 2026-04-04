@@ -177,20 +177,22 @@ def cfBreakAt(ds: xr.Dataset, index: int, newVol: bool = False) -> Tuple[xr.Data
 		ds2["time"].data = ds2["time"].values - ds2_time_offset
 		ds2["time"].attrs = time_attrs
 
-		if "units" in ds2["time"].attrs and "since" in ds2["time"].attrs["units"]:
-			unit_prefix = ds2["time"].attrs["units"].split("since")[0].strip()
-			ds2["time"].attrs["units"] = f"{unit_prefix} since {ds2_start_dt.isoformat()}"
+		ds2["time"].attrs["units"] = f"seconds since {ds2_start_dt.isoformat().replace('+00:00', 'Z')}"
 
 		ds1_end_str = ds1_end_dt.isoformat()
 		ds1.attrs["end_datetime"] = ds1_end_str
-		ds1.attrs["time_coverage_end"] = ds1_end_str
+		ds1.attrs["time_coverage_end"] = ds1_end_str.replace('+00:00', 'Z')
 		if "time_coverage_end" in ds1:
-			ds1["time_coverage_end"].data = np.array(ds1_end_str)
+			ds1_end_str = ds1_end_str.replace('+00:00', 'Z') +\
+				(len(ds1.ds["string_length_32"]) - len(ds1_end_str.replace('+00:00', 'Z')))*' '
+			ds1["time_coverage_end"].data = np.array([c for c in ds1_end_str], dtype="|S1")
 
 		ds2_start_str = ds2_start_dt.isoformat()
 		ds2.attrs["start_datetime"] = ds2_start_str
-		ds2.attrs["time_coverage_start"] = ds2_start_str
+		ds2.attrs["time_coverage_start"] = ds2_start_str.replace('+00:00', 'Z')
 		if "time_coverage_start" in ds2:
-			ds2["time_coverage_start"].data = np.array(ds2_start_str)
+			ds2_start_str = ds2_start_str.replace('+00:00', 'Z') +\
+				(len(ds2.ds["string_length_32"]) - len(ds2_start_str.replace('+00:00', 'Z')))*' '
+			ds2["time_coverage_start"].data = np.array([c for c in ds2_start_str], dtype="|S1")
 
 	return ds1, ds2

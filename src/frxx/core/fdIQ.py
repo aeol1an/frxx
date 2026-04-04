@@ -169,16 +169,13 @@ class IQ(frxxData):
 				.editPlatformPrefix(platform, prefix).toJson()
 		self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
 
-	def addDataField(self, name: str, data: NDArray, dims: List[str], attrs, encoding):
-		if dims != ["pol", "range", "time", "iqdim"] or name != 'iq':
-			raise ValueError("Please only add iq data to this data structure!")
-		
+	def addDataField(self, name: str, data: NDArray, attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all IQ object variables.")
 
 		self.ds[name] = self._constructDataArray(
 			data = data,
-			dims = dims,
+			dims = ["pol", "range", "time", "iqdim"],
 			attrs = attrs,
 			encoding = encoding
 		)

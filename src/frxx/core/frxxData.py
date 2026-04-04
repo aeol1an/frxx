@@ -102,29 +102,30 @@ class frxxData(ABC):
 
 		self.requiredBools["volume"] = True
 		
-	def setTime(self, unixTimeArr: NDArray[np.float64], time_zone: str = 'zulu'):
+	def setTime(
+		self, unixTimeArr: NDArray[np.float64], 
+		volStartUnixTime: float, volEndUnixTime: float,
+		time_zone: str = 'UTC'
+	):
 		if (unixTimeArr.dtype != np.float64):
 			raise TypeError("Expected array of np.float64")
 		
-		startTime = unixTimeArr[0]
-		endTime = unixTimeArr[-1]
+		timeVar = unixTimeArr - volStartUnixTime
 		
-		timeVar = unixTimeArr - startTime
-		
-		startTimeStr = datetime.fromtimestamp(startTime, tz=pytz.timezone(time_zone))\
+		volStartTimeStr = datetime.fromtimestamp(volStartUnixTime, tz=pytz.timezone(time_zone))\
 			.astimezone(pytz.utc).isoformat()
-		endTimeStr = datetime.fromtimestamp(endTime, tz=pytz.timezone(time_zone))\
+		volEndTimeStr = datetime.fromtimestamp(volEndUnixTime, tz=pytz.timezone(time_zone))\
 			.astimezone(pytz.utc).isoformat()
 			
-		self.ds.attrs["time_coverage_start"] = startTimeStr.replace('+00:00', 'Z')
-		self.ds.attrs["start_datetime"] = startTimeStr
-		self.ds.attrs["time_coverage_end"] = endTimeStr.replace('+00:00', 'Z')
-		self.ds.attrs["end_datetime"] = endTimeStr
+		self.ds.attrs["time_coverage_start"] = volStartTimeStr.replace('+00:00', 'Z')
+		self.ds.attrs["start_datetime"] = volStartTimeStr
+		self.ds.attrs["time_coverage_end"] = volEndTimeStr.replace('+00:00', 'Z')
+		self.ds.attrs["end_datetime"] = volEndTimeStr
 		
-		paddedStartTime = startTimeStr.replace('+00:00', 'Z') +\
-			(len(self.ds["string_length_32"]) - len(startTimeStr.replace('+00:00', 'Z')))*' '
-		paddedEndTime = endTimeStr.replace('+00:00', 'Z') +\
-			(len(self.ds["string_length_32"])- len(endTimeStr.replace('+00:00', 'Z')))*' '
+		paddedStartTime = volStartTimeStr.replace('+00:00', 'Z') +\
+			(len(self.ds["string_length_32"]) - len(volStartTimeStr.replace('+00:00', 'Z')))*' '
+		paddedEndTime = volEndTimeStr.replace('+00:00', 'Z') +\
+			(len(self.ds["string_length_32"])- len(volEndTimeStr.replace('+00:00', 'Z')))*' '
 		
 		self.ds["time_coverage_start"] = xr.DataArray(
 			data = np.array([c for c in paddedStartTime], dtype="|S1"),
@@ -153,7 +154,7 @@ class frxxData(ABC):
 		
 		self.ds = self.ds.assign_coords(time=timeVar)
 		self.ds["time"].attrs = {
-			"units": "seconds since " + startTimeStr.replace('+00:00', 'Z'),
+			"units": "seconds since " + volStartTimeStr.replace('+00:00', 'Z'),
 			"standard_name": "time",
 			"long_name": "time in seconds since volume start",
 		}
@@ -164,17 +165,56 @@ class frxxData(ABC):
 		
 		self.requiredBools["time"] = True
 
-	def setSweep(self, sweepNum: int = 0, volStartUnixTime: float | None = None, time_zone: str | None = None):
+	def _cpyTime(self, other: "frxxData", newTimeArr: NDArray[np.float64] | None):
+		if newTimeArr is None:
+			newTimeArr = other.ds["time"].values
+
+		self.ds.attrs["time_coverage_start"] = other.ds.attrs["time_coverage_start"]
+		self.ds.attrs["start_datetime"] = other.ds.attrs["start_datetime"]
+		self.ds.attrs["time_coverage_end"] = other.ds.attrs["time_coverage_end"]
+		self.ds.attrs["end_datetime"] = other.ds.attrs["end_datetime"]
+
+		self.ds["time_coverage_start"] = xr.DataArray(
+			data = other.ds["time_coverage_start"].values,
+			dims = ["string_length_32"],
+			attrs = {
+				"standard_name": "data_volume_start_time_utc",
+				"comment": "ray times are relative to start time in secs",
+			}
+		)
+		self.ds["time_coverage_start"].encoding = {
+			"dtype": "|S1",
+			"_FillValue": b' ',
+		}
+		self.ds["time_coverage_end"] = xr.DataArray(
+			data = other.ds["time_coverage_end"].values,
+			dims = ["string_length_32"],
+			attrs = {
+				"standard_name": "data_volume_end_time_utc",
+				"comment": "ray times are relative to start time in secondss",
+			},
+		)
+		self.ds["time_coverage_end"].encoding = {
+			"dtype": "|S1",
+			"_FillValue": b' ',
+		}
+
+		self.ds = self.ds.assign_coords(time=newTimeArr)
+		self.ds["time"].attrs = {
+			"units": "seconds since " + other.ds.attrs["time_coverage_start"],
+			"standard_name": "time",
+			"long_name": "time in seconds since volume start",
+		}
+		self.ds["time"].encoding = {
+			"dtype": "float64",
+			"_FillValue": -9999.0
+		}
+
+		self.requiredBools["time"] = True
+
+	def setSweep(self, sweepNum: int = 0):
 		if not self.requiredBools["time"]:
 			raise RuntimeError("Need to call setTime before this.")
-		if (sweepNum != 0) and (volStartUnixTime is None):
-			raise ValueError("Need to provide a volStartTimeDbl for start of"
-							 "volume if this isn't the first sweep.\n"
-							 "Alternatively, initializing with sweepNum=0 "
-							 "and calling .concat is simpler.")
-		if (volStartUnixTime is not None) and (time_zone is None):
-			raise ValueError("Need to give time zone string (probably "
-							 "'US/Central') for pytz if time double is given.")
 		
 		self.ds = self.ds.assign_coords(sweep=np.arange(1))
 
@@ -213,21 +253,6 @@ class frxxData(ABC):
 			"dtype": "int32",
 			"_FillValue": _FILL_VALUES["int32"]
 		}
-
-		if volStartUnixTime is not None and time_zone is not None:
-			volStartDt = datetime.fromtimestamp(volStartUnixTime, tz=pytz.timezone(time_zone))\
-				.astimezone(pytz.utc)
-			sweepStartDt = datetime.fromtimestamp(self.ds.attrs["start_datetime"])
-
-			offset_seconds = (sweepStartDt - volStartDt).total_seconds()
-			
-			volStartStr = volStartDt.isoformat().replace('+00:00', 'Z')
-			self.ds.attrs["volume_start_datetime"] = volStartStr
-
-			self.ds = self.ds.assign_coords(time=self.ds["time"] + offset_seconds)
-			self.ds["time"].attrs["units"] = "seconds since " + volStartStr
-		else: #sweepNum is 0
-			self.ds.attrs["volume_start_datetime"] = self.ds.attrs["start_datetime"]
 
 		self.requiredBools["sweep"] = True
 
@@ -494,7 +519,7 @@ class frxxData(ABC):
 		self.optionalBools["addtl_comments"] = True
 
 	@abstractmethod
-	def addDataField(self, name: str, data, dims: List[str], attrs, encoding):
+	def addDataField(self, name: str, data, attrs, encoding):
 		pass
 	def _incDataCounts(self):
 		self.numDataVars += 1
@@ -620,6 +645,14 @@ class frxxData(ABC):
 		return True
 	
 	@property
+	def vol(self) -> int:
+		return int(self.ds["volume_number"].values)
+	
+	@property
+	def sweep(self) -> int:
+		return self.ds["sweep_number"].values[0]
+
+	@property
 	def time(self):
 		return np.ascontiguousarray(self.ds["time"].data)
 	
@@ -660,5 +693,5 @@ class frxxData(ABC):
 		}
 	
 	@property
-	def fixedAngle(self):
-		return np.ascontiguousarray(self.ds["fixed_angle"].data)
+	def fixedAngle(self) -> float:
+		return np.ascontiguousarray(self.ds["fixed_angle"].data)[0]

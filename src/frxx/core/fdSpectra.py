@@ -41,9 +41,9 @@ class spectra(frxxData):
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
 
-	def setPulseBoundaries(self, boundaries: NDArray[np.int32]):
-		if (boundaries.dtype != np.int32):
-			raise TypeError("Expected array of np.int32")
+	def setPulseBoundaries(self, boundaries: NDArray[np.int64]):
+		if (boundaries.dtype != np.int64):
+			raise TypeError("Expected array of np.int64")
 		if not self.requiredBools["time"]:
 			raise RuntimeError("Need to call setTime() before this function.")
 		if boundaries.shape != (len(self.ds["time"]), len(self.ds["ray_start_end"])):
@@ -58,8 +58,8 @@ class spectra(frxxData):
 			}
 		)
 		self.ds["pulse_boundaries"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
+			"dtype": "int64",
+			"_FillValue": _FILL_VALUES["int64"]
 		}
 
 		self.requiredBools["pulse_boundaries"] = True
@@ -103,11 +103,9 @@ class spectra(frxxData):
 
 		self.requiredBools["SNR_threshold"] = True
 
-	def addDataField(self, name: str, data: List[NDArray], dims: List[str], attrs, encoding):
+	def addDataField(self, name: str, data: List[NDArray], attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all spectra object variables.")
-		if dims != ["time", "range", "velocity"]:
-			raise ValueError("Spectral data must be in [\"time\", \"range\", \"velocity\"]!")
 		if not isinstance(data, List):
 			raise TypeError("Spectra can be jagged so the first dim should be a python list. " \
 							"This functon handles filling with NaNs.")
@@ -152,7 +150,7 @@ class spectra(frxxData):
 
 		self.ds[name] = self._constructDataArray(
 			data = paddedData,
-			dims = dims,
+			dims = ["time", "range", "velocity"],
 			attrs = attrs,
 			encoding = encoding
 		)
