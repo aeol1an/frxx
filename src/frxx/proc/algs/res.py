@@ -144,3 +144,15 @@ def subsetIQ(
         result = iq[iranges[0]:iranges[1]+1, firstPulse:lastPulse+1]
     
     return result, NR, i64swathPulses
+
+# TODO: Zero-copy refactor for K>1
+# Instead of allocating a 2D result matrix with copied IQ data,
+# return the original IQ block (or a contiguous slice of it) plus
+# a small Nx3 int64 index array of (r, firstPulse, lastPulse).
+# Downstream function loops over the index array and accesses
+# iq[r, firstPulse:lastPulse+1] directly — no IQ copy needed.
+# Index array allocation is negligible (3 int64s per row vs full complex64 row).
+# Cache behavior should be fine: az averaging hits one row repeatedly,
+# range averaging walks r like [0,0,1,0,1,2,1,2,3,...] — sequential neighbors.
+# This also naturally extends to 3D (group index rows by azimuth)
+# without requiring the downstream computation to change much.
