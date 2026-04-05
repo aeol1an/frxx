@@ -32,7 +32,7 @@ def _rangeSubsetIQ(iq, result, K, Koffset, NR, startRange, fp, lp):
     
     for r in prange(NR):
         iK = np.arange(0, K, 1) + (r)*K
-        r_set_idx = np.arange(0, K, 1)+r-(K//2-Koffset)+startRange[0]
+        r_set_idx = np.arange(0, K, 1)+r-(K//2-Koffset)+startRange
         r_set_idx[r_set_idx < 0] = 0
         r_set_idx[r_set_idx > (ng-1)] = ng-1
         result[:,iK,:] = iq[:,r_set_idx,fp:lp+1]
@@ -41,7 +41,7 @@ def _azSubsetIQ(iq, result, NR, startRange, fps, lps):
     iK = 0
     naz = len(fps)
     for r in prange(NR):
-        for az in range(fps):
+        for az in range(naz):
             fp = fps[az]
             lp = lps[az]
             result[:,iK,:] = iq[:, r+startRange,fp:lp+1]
@@ -52,27 +52,27 @@ def subsetIQ(
     pulseBoundaries, 
     iranges, 
     swathPulses = None, 
-    K = 1, K_offset = 'low', 
-    dpsd_strat = 'az'
+    K = 1, KOffset = 'low', 
+    avgStrat = 'az'
 ):
     ng, ns = iq[0].shape
     
     if K % 2 == 1:
-        K_offset = 0
+        KOffset = 0
     else:
-        if K_offset == 'low':
-            K_offset = 0
-        elif K_offset == 'high':
-            K_offset = 1
+        if KOffset == 'low':
+            KOffset = 0
+        elif KOffset == 'high':
+            KOffset = 1
         else:
-            raise ValueError("Valid values for K_offset: {'low', 'high'}")
+            raise ValueError("Valid values for KOffset: {'low', 'high'}")
     
     NR = iranges[1]+1 - iranges[0]
     
     result = np.array([], dtype=iq[0].dtype)
 
     if K > 1:
-        if dpsd_strat == 'r':
+        if avgStrat == 'r':
             pixelBoundaries = pulseBoundaries[iaz]
             
             centerPulse = pixelBoundaries[0] + (pixelBoundaries[1]+1 - pixelBoundaries[0])//2
@@ -85,12 +85,12 @@ def subsetIQ(
                 raise ValueError("Swath too large and pulse out of bounds.")
             
             result = np.empty((len(iq), K*NR, swathPulses), dtype=iq[0].dtype)
-            _rangeSubsetIQ(np.array(iq), result, K, K_offset, NR, iranges[0], firstPulse, lastPulse)
-        elif dpsd_strat == 'az':
+            _rangeSubsetIQ(np.array(iq), result, K, KOffset, NR, iranges[0], firstPulse, lastPulse)
+        elif avgStrat == 'az':
             if np.mean(np.sign(np.diff(azVals))) > 0:
-                az_set_idx = np.arange(0, K, 1)-(K//2-K_offset)+iaz
+                az_set_idx = np.arange(0, K, 1)-(K//2-KOffset)+iaz
             else:
-                az_set_idx = np.arange(K-1, -1, -1)-int(np.ceil(K/2)-np.abs(K_offset-1))+iaz
+                az_set_idx = np.arange(K-1, -1, -1)-int(np.ceil(K/2)-np.abs(KOffset-1))+iaz
             if np.any(az_set_idx < 0) or np.any(az_set_idx >= len(azVals)):
                 raise ValueError("Some azimuths being averaged over do not exist. Lower K or move target azimuth away from edge.")
             
