@@ -11,13 +11,11 @@ from numba import njit, prange
 
 import sys
 
-@njit(
-	'complex128[:](complex128[:,:], optional(complex128[:,:]), int32)',
-	parallel=True, inline='always', cache=True
-)
-def correlation(X1, X2=None, lag=0):
-	if X2 is None:
-		X2 = X1
+# @njit(
+# 	'complex128[:](complex128[:,:], complex128[:,:], int32)',
+# 	parallel=True, inline='always', cache=True
+# )
+def correlation(X1, X2, lag=0):
 	if X1.shape != X2.shape:
 		raise ValueError("Two array shapes not equal.")
 	
@@ -32,12 +30,12 @@ def correlation(X1, X2=None, lag=0):
 		
 	return np.sum(prod, axis=1) / nt
 
-@njit(
-	'Tuple(complex128[:,:,:], complex128[:,:], complex128[:,:])'
-	'(complex128[:,:], complex128[:,:], int32[:,:], int32[:])', 
-	parallel=True, cache=True
-)
-def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1])):
+# @njit(
+# 	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
+# 	'(complex128[:,:], complex128[:,:], int64[:,:], int32[:])', 
+# 	parallel=True, cache=True
+# )
+def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
 	#nRange, nBigTime, nLags
 	nRange = iqh.shape[0]
 	nBigTime = pulseBoundaries.shape[0]
@@ -47,11 +45,13 @@ def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1])):
 	RV = np.empty((nBigTime, nRange), dtype=np.complex128)
 	RX = np.empty((nBigTime, nRange), dtype=np.complex128)
 
-	for t in prange(nBigTime):
-		RV[t,:] = correlation(iqv, iqv, 0)
-		RX[t,:] = correlation(iqh, iqv, 0)
-		for l in prange(nLags):
-			RH[t,:,l] = correlation(iqh, iqh, lags[l])
+	for t in range(nBigTime):
+		iqhs = iqh[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
+		iqvs = iqv[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
+		RV[t,:] = correlation(iqvs, iqvs, 0)
+		RX[t,:] = correlation(iqhs, iqvs, 0)
+		for l in range(nLags):
+			RH[t,:,l] = correlation(iqhs, iqhs, lags[l])
 
 	return RH, RV, RX
 
@@ -78,8 +78,8 @@ def _averageByGstep(data, gstep: int):
 def calculateDualPolPPIACF(
 		iq: IQ, 
 		azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0, gstep: int = 1,
-		SNRHthresholddB: float = 0, SNRVthresholddB: float = 0,
-		flipVel: bool = False
+		SNRthresholddB: Tuple[float,float] | None = None, 
+		subtractNoiseEstimate: bool = True, flipVel: bool = False
 ) -> moments:
 	if not ("iq" in iq.ds):
 		raise ValueError("IQ data structure is not complete yet.")
@@ -93,11 +93,10 @@ def calculateDualPolPPIACF(
 	el = iq.el
 
 	time = iq.time
-	r = iq.range
-	rkm = r/1000.
-	nr = len(r)
+	rkm = iq.rkm
 
 	zcalh, zcalv = tuple(iq.ds["Zcal"].values)
+	zcalh = zcalh+8
 	dcal = float(iq.ds["Dcal"].values)
 	pcal = float(iq.ds["Pcal"].values)
 
@@ -117,20 +116,26 @@ def calculateDualPolPPIACF(
 	mEl = el[middlePulses]
 	mTime = time[middlePulses]
 
-	R = processRaysACF(iqh, iqv, pulseBoundaries, np.array([0, 1]))
+	R = processRaysACF(iqh, iqv, pulseBoundaries, np.array([0, 1], dtype=np.int32))
 
 	Rh, Rv, Rx = tuple(_averageByGstep(r, gstep) for r in R)
 
+
 	N0hLin = 10**(0.1 * N0h)
 	N0vLin = 10**(0.1 * N0v)
-	SNRHthreshLin = 10**(0.1 * SNRHthresholddB)
-	SNRVthreshLin = 10**(0.1 * SNRVthresholddB)
 
-	Sh = np.abs(Rh[:,:,0]) - N0hLin
-	Sv = np.abs(Rv) - N0vLin
+	Sh = np.abs(Rh[:,:,0]) - (N0hLin if subtractNoiseEstimate else 0)
+	Sv = np.abs(Rv) - (N0vLin if subtractNoiseEstimate else 0)
 
-	Sh[(Sh / N0hLin) <= SNRHthreshLin] = np.nan
-	Sv[(Sv / N0vLin) <= SNRVthreshLin] = np.nan
+	if SNRthresholddB is None:
+		Sh[Sh <= 0] = np.nan
+		Sv[Sh <= 0] = np.nan
+	else:
+		SNRHthreshLin = 10**(0.1 * SNRthresholddB[0])
+		SNRVthreshLin = 10**(0.1 * SNRthresholddB[1])
+		Sh[(Sh / N0hLin) <= SNRHthreshLin] = np.nan
+		Sv[(Sv / N0vLin) <= SNRVthreshLin] = np.nan
+
 
 	DBZ = 10*np.log10(Sh*(rkm**2)) + zcalh
 
@@ -163,16 +168,16 @@ def calculateDualPolPPIACF(
 	m.setVolume(iq.vol)
 	m._cpyTime(iq, mTime)
 	m.setSweep(iq.sweep)
-	m.setRange(r, True)
+	m.setRange(iq.rm, True)
 	m.setPosition(*iq.pos.values())
 	m.setScanningStrategy("ppi", iq.fixedAngle)
 	m.setAzimuth(mAz)
 	m.setElevation(mEl)
-	m.setPulseWidthSeconds(iq.pw)
-	m.setPrtSeconds(iq.prt)
-	m.setWavelengthMeters(iq.wavelength)
+	m.setPulseWidthSeconds(iq.pw[middlePulses])
+	m.setPrtSeconds(iq.prt[middlePulses])
+	m.setWavelengthMeters(iq.wavelength[middlePulses])
 	m.setPol(2)
-	m.setSNRThreshold(SNRHthresholddB, SNRVthresholddB)
+	m.setSNRThreshold([-np.inf, -np.inf] if SNRthresholddB is None else SNRthresholddB)
 	m.setPulseBoundaries(pulseBoundaries)
 
 	encoding = {

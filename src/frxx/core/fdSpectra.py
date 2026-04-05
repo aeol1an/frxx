@@ -187,7 +187,7 @@ class spectra(frxxData):
 
 		#check SNR_threshold
 		vars = ["SNR_threshold"]
-		self.requiredBools["SNR_threshold"] = self._checkVars(vars)
+		self.requiredBools["SNR_threshold"] = self._checkVars(vars, False)
 
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()

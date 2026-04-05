@@ -925,7 +925,7 @@ def readIQ(
     ret.setSourceFile(rkc.filename)
 
     ret.setPol(2)
-    ret.setNoisedB(rkc.header["config"]["noise"])
+    ret.setNoisedB(10*np.log10(rkc.header["config"]["noise"]))
     ret.setCal(
         rkc.header["config"]["systemZCal"], 
         rkc.header["config"]["systemDCal"],
@@ -935,10 +935,9 @@ def readIQ(
     ret.addDataField(
         'iq',
         data = iq,
-        dims = ["pol", "range", "time", "iqdim"],
         attrs = {
             "units": "arbitrary_raw_transciever_units",
-            "long_name": "raw_in-phase/quadrature_returns",
+            "long_name": "raw_in-phase_quadrature_returns",
         },
         encoding = {
             "dtype": "float32",

@@ -1,7 +1,7 @@
 import numpy as np
 import xarray as xr
 
-from typing import List
+from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
 from .frxxData import _FILL_VALUES, frxxData
@@ -74,18 +74,14 @@ class moments(frxxData):
 
 		self.requiredBools["pol"] = True
 
-	def setSNRThreshold(self, snrh: float, snrv: float | None = None):
+	def setSNRThreshold(self, snrt_db: Union[NDArray[np.floating], Sequence[float]]):
 		if not self.requiredBools["pol"]:
 			raise RuntimeError("Number of polarizations not set yet.")
-		if not isinstance(snrh, (int, float)):
-			raise TypeError(f"Expected Number for snrh, got {type(snrh).__name__}")
-		if not isinstance(snrv, (int, float, type(None))):
-			raise TypeError(f"Expected Number or None for snrv, got {type(snrh).__name__}")
-		if snrv is None and len(self.ds["pol"]) == 2:
-			raise ValueError(f"Dual-pol was set, but only snrh threshold set. Pass 0 if no snrv threshold.")
+		if len(snrt_db) != len(self.ds["pol"]):
+			raise ValueError(f"Number of thresholds passed does not match length of pol dimension.")
 		
 		self.ds["SNR_threshold"] = xr.DataArray(
-			data = [snrh, snrv],
+			data = np.array(snrt_db),
 			dims = ["pol"],
 			attrs = {
 				"long_name": "signal_to_noise_thresholds_for_spectral_masking",
@@ -128,6 +124,10 @@ class moments(frxxData):
 		#check pol
 		vars = ["pol"]
 		self.requiredBools["pol"] = self._checkVars(vars)
+
+		#check SNR_threshold
+		vars = ["SNR_threshold"]
+		self.requiredBools["SNR_threshold"] = self._checkVars(vars, False)
 
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()

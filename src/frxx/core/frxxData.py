@@ -14,6 +14,7 @@ import xarray as xr
 _FILL_VALUES = {
 	"int16": np.iinfo(np.int16).min,
 	"int32": np.iinfo(np.int32).min,
+	"int64": np.iinfo(np.int64).min,
 	"float32": -9999.0,
 	"float64": -9999.0,
 	"|S1": b' '
@@ -657,8 +658,12 @@ class frxxData(ABC):
 		return np.ascontiguousarray(self.ds["time"].data)
 	
 	@property
-	def range(self):
+	def rm(self):
 		return np.ascontiguousarray(self.ds["range"].data)
+	
+	@property
+	def rkm(self):
+		return np.ascontiguousarray(self.ds["range"].data)/1000.
 
 	@property
 	def az(self):
