@@ -32,7 +32,7 @@ moments = {
 
 spectra = {
     #DPSD
-	'POWS': {
+	'PSD': {
 		'title': 'Power Spectra (dB)',
 		'shortTitle': 'sS$_H$',
 		'ranges': (0, 75, 5),

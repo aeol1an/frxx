@@ -2,88 +2,11 @@ from ...core import IQ, moments
 from ...core.frxxData import _FILL_VALUES
 
 from ...utils import findPulseBoundaries
+from .. import algs
 
 from typing import Tuple
 
 import numpy as np
-
-from numba import njit, prange
-
-import sys
-
-@njit('complex128[:](complex64[:,:], complex64[:,:], int32)', parallel=True, cache=True)
-def correlation(X1, X2, lag=0):
-	if X1.shape != X2.shape:
-		raise ValueError("Two array shapes not equal.")
-	nr, nt = X1.shape
-	result = np.empty(nr, dtype=np.complex128)
-
-	if lag == 0:
-		for i in prange(nr):
-			acc = np.complex128(0)
-			for j in range(nt):
-				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j]))
-			result[i] = acc / nt
-	elif lag > 0:
-		for i in prange(nr):
-			acc = np.complex128(0)
-			for j in range(nt - lag):
-				acc += np.complex128(X1[i, j + lag]) * np.conj(np.complex128(X2[i, j]))
-			result[i] = acc / nt
-	else:
-		neg_lag = -lag
-		for i in prange(nr):
-			acc = np.complex128(0)
-			for j in range(nt + lag):
-				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j + neg_lag]))
-			result[i] = acc / nt
-
-	return result
-
-@njit(
-	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
-	'(complex64[:,:], complex64[:,:], int64[:,:], int32[:])', 
-	parallel=True, cache=True
-)
-def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
-	#nRange, nBigTime, nLags
-	nRange = iqh.shape[0]
-	nBigTime = pulseBoundaries.shape[0]
-	nLags = lags.shape[0]
-
-	RH = np.empty((nBigTime, nRange, nLags), dtype=np.complex128)
-	RV = np.empty((nBigTime, nRange), dtype=np.complex128)
-	RX = np.empty((nBigTime, nRange), dtype=np.complex128)
-
-	for t in range(nBigTime):
-		iqhs = iqh[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
-		iqvs = iqv[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
-		RV[t,:] = correlation(iqvs, iqvs, 0)
-		RX[t,:] = correlation(iqhs, iqvs, 0)
-		for l in range(nLags):
-			RH[t,:,l] = correlation(iqhs, iqhs, lags[l])
-
-	return RH, RV, RX
-
-def _averageByGstep(data, gstep: int):
-	if gstep == 1:
-		return data
-	
-	t, r = (data.shape[0], data.shape[1])
-	fullGroups = r//gstep
-	if fullGroups > 0:
-		mainPart = data[:,:fullGroups*gstep,...]\
-			.reshape((t, fullGroups, gstep, *data.shape[2:])).mean(axis=2)
-	else:
-		mainPart = np.array([]).reshape((t, 0, *data.shape[2:]))
-		
-	if r % gstep != 0:
-		remainder = data[:,fullGroups*gstep:,...].mean(axis=1)
-		result = np.concatenate((mainPart, remainder), axis=1)
-	else:
-		result = mainPart
-		
-	return result
 
 def calculateDualPolPPIACF(
 		iq: IQ, 
@@ -126,9 +49,9 @@ def calculateDualPolPPIACF(
 	mEl = el[middlePulses]
 	mTime = time[middlePulses]
 
-	R = processRaysACF(iqh, iqv, pulseBoundaries, np.array([0, 1], dtype=np.int32))
+	R = algs.ACF.processRays(iqh, iqv, pulseBoundaries, np.array([0, 1], dtype=np.int32))
 
-	Rh, Rv, Rx = tuple(_averageByGstep(r, gstep) for r in R)
+	Rh, Rv, Rx = tuple(algs.res.averageAlongRange(r, gstep) for r in R)
 
 
 	N0hLin = 10**(0.1 * N0h)
