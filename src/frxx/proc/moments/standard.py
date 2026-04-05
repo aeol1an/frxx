@@ -3,7 +3,7 @@ from ...core.frxxData import _FILL_VALUES
 
 from ...utils import findPulseBoundaries
 
-from typing import Tuple, Callable
+from typing import Tuple
 
 import numpy as np
 
@@ -11,30 +11,40 @@ from numba import njit, prange
 
 import sys
 
-# @njit(
-# 	'complex128[:](complex128[:,:], complex128[:,:], int32)',
-# 	parallel=True, inline='always', cache=True
-# )
+@njit('complex128[:](complex64[:,:], complex64[:,:], int32)', parallel=True, cache=True)
 def correlation(X1, X2, lag=0):
 	if X1.shape != X2.shape:
 		raise ValueError("Two array shapes not equal.")
-	
-	_, nt = X1.shape
+	nr, nt = X1.shape
+	result = np.empty(nr, dtype=np.complex128)
 
 	if lag == 0:
-		prod = X1 * np.conjugate(X2)
+		for i in prange(nr):
+			acc = np.complex128(0)
+			for j in range(nt):
+				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j]))
+			result[i] = acc / nt
 	elif lag > 0:
-		prod = X1[:,lag:] * np.conjugate(X2[:,:-lag])
+		for i in prange(nr):
+			acc = np.complex128(0)
+			for j in range(nt - lag):
+				acc += np.complex128(X1[i, j + lag]) * np.conj(np.complex128(X2[i, j]))
+			result[i] = acc / nt
 	else:
-		prod = X1[:,:lag] * np.conjugate(X2[:,-lag:])
-		
-	return np.sum(prod, axis=1) / nt
+		neg_lag = -lag
+		for i in prange(nr):
+			acc = np.complex128(0)
+			for j in range(nt + lag):
+				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j + neg_lag]))
+			result[i] = acc / nt
 
-# @njit(
-# 	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
-# 	'(complex128[:,:], complex128[:,:], int64[:,:], int32[:])', 
-# 	parallel=True, cache=True
-# )
+	return result
+
+@njit(
+	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
+	'(complex64[:,:], complex64[:,:], int64[:,:], int32[:])', 
+	parallel=True, cache=True
+)
 def processRaysACF(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
 	#nRange, nBigTime, nLags
 	nRange = iqh.shape[0]
@@ -88,7 +98,7 @@ def calculateDualPolPPIACF(
 	
 	va = iq.va[0]
 
-	iqh, iqv = (iq.iqh.astype(np.complex128), iq.iqv.astype(np.complex128))
+	iqh, iqv = (iq.iqh, iq.iqv)
 	az = iq.az
 	el = iq.el
 

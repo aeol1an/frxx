@@ -2,43 +2,85 @@ import numpy as np
 from numba import njit, prange
 
 @njit(parallel=True, cache=True)
-def _computeSingleSpectrum(VH, VV, w, R0H, R0V, M, NFT, B, r):
-    CX_left = 0.5*(VH[0]/VH[-1] + VV[0]/VV[-1])
-    CX_right = 0.5*(VH[-1]/VH[0] + VV[-1]/VV[0])
-    
+def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
+    CX_left = 0.5 * (VH[0]/VH[-1] + VV[0]/VV[-1])
+    CX_right = 0.5 * (VH[-1]/VH[0] + VV[-1]/VV[0])
+
     XH = np.concatenate((
-        VH[-round(M * r):-1] * CX_left, 
-        VH, 
+        VH[-round(M * r):-1] * CX_left,
+        VH,
         VH[1:round(M * r)] * CX_right
     ))
     XV = np.concatenate((
-        VV[-round(M * r):-1] * CX_left, 
-        VV, 
+        VV[-round(M * r):-1] * CX_left,
+        VV,
         VV[1:round(M * r)] * CX_right
     ))
-    
-    Mx = len(XH)    
-    VH_boot = np.empty((B, M), dtype=XH.dtype)
-    VV_boot = np.empty((B, M), dtype=XV.dtype)
+
+    # R0 with no temporaries
+    accH = 0.0
+    accV = 0.0
+    for j in range(M):
+        vh = VH[j]
+        vv = VV[j]
+        accH += vh.real * vh.real + vh.imag * vh.imag
+        accV += vv.real * vv.real + vv.imag * vv.imag
+    R0H = accH / M
+    R0V = accV / M
+
+    Mx = len(XH)
+
+    # Fused: bootstrap + R0 + rescale + window in one parallel loop
+    WH = np.empty((B, M), dtype=XH.dtype)
+    WV = np.empty((B, M), dtype=XV.dtype)
+
     for i in prange(B):
         boot_idx = np.random.randint(0, Mx - M + 1)
-        VH_boot[i,:] = XH[boot_idx:boot_idx+M]
-        VV_boot[i,:] = XV[boot_idx:boot_idx+M]
-    
-    tR0H = np.sum(VH_boot * np.conjugate(VH_boot), axis=1) / M
-    tR0V = np.sum(VV_boot * np.conjugate(VV_boot), axis=1) / M
 
-    VH = np.power((R0H / tR0H), 0.5).reshape(-1,1) * VH_boot
-    VV = np.power((R0V / tR0V), 1/2).reshape(-1,1) * VV_boot
-    
-    zH = np.fft.fft(VH*w, n=NFT, axis=1)
-    zV = np.fft.fft(VV*w, n=NFT, axis=1)
-    
-    alpha = np.mean(np.power(np.abs(w), 2))
-    SHi = np.sum((np.power(np.abs(zH), 2)) / (M * alpha), axis=0) / B
-    SVi = np.sum((np.power(np.abs(zV), 2)) / (M * alpha), axis=0) / B
-    SXi = np.sum((zH * np.conjugate(zV)) / (M * alpha), axis=0) / B
-    
+        # Pass 1: extract block and accumulate |x|^2 for R0
+        accH = 0.0
+        accV = 0.0
+        for j in range(M):
+            vh = XH[boot_idx + j]
+            vv = XV[boot_idx + j]
+            WH[i, j] = vh
+            WV[i, j] = vv
+            accH += vh.real * vh.real + vh.imag * vh.imag
+            accV += vv.real * vv.real + vv.imag * vv.imag
+
+        # Pass 2: rescale + window in-place (row is hot in L1)
+        scaleH = np.sqrt(R0H * M / accH)
+        scaleV = np.sqrt(R0V * M / accV)
+        for j in range(M):
+            WH[i, j] *= scaleH * w[j]
+            WV[i, j] *= scaleV * w[j]
+
+    # FFT
+    zH = np.fft.fft(WH, n=NFT, axis=1)
+    zV = np.fft.fft(WV, n=NFT, axis=1)
+
+    # Spectral averages — parallelize over frequency bins
+    alpha = np.mean(np.abs(w) ** 2)
+    norm = M * alpha * B
+
+    SHi = np.empty(NFT, dtype=np.float64)
+    SVi = np.empty(NFT, dtype=np.float64)
+    SXi = np.empty(NFT, dtype=np.complex128)
+
+    for j in prange(NFT):
+        sh = 0.0
+        sv = 0.0
+        sx = np.complex128(0)
+        for i in range(B):
+            zh = zH[i, j]
+            zv = zV[i, j]
+            sh += zh.real * zh.real + zh.imag * zh.imag
+            sv += zv.real * zv.real + zv.imag * zv.imag
+            sx += zh * np.conj(zv)
+        SHi[j] = sh / norm
+        SVi[j] = sv / norm
+        SXi[j] = sx / norm
+
     return SHi, SVi, SXi
 
 @njit(parallel=True, cache=True)
@@ -53,8 +95,6 @@ def _computeMultpleSpectra(
     for i in prange(NK):
         SHi, SVi, SXi = _computeSingleSpectrum(
             VH[i,:], VV[i,:], w,
-            np.mean(VH[i,:] * np.conjugate(VH[i,:])),
-            np.mean(VV[i,:] * np.conjugate(VV[i,:])),
             M, NFT, B, r
         )
         SH[i,:] = SHi
