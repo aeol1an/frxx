@@ -64,14 +64,14 @@ spectra = {
 	#DCA
     'ZDRVAR': {
         'title': 'Spectral Variance of\nDifferential Reflectivity (dB$^2$)',
-        'shortTitle': '$\sigma^2$sZDR',
+        'shortTitle': '$\\sigma^2$sZDR',
         'ranges': (0, 50, 5),
         'cmap': 'pyart_Carbone42',
         'units': 'dB$^2$'
     },
     'RHVVAR': {
         'title': 'Spectral Variance of\nCorrelation Coefficient',
-        'shortTitle': '$\sigma^2$s$\\rho_{HV}$',
+        'shortTitle': '$\\sigma^2$s$\\rho_{HV}$',
         'ranges': (0, 0.25, 5),
         'cmap': 'pyart_Carbone42',
         'units': ''
