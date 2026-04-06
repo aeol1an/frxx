@@ -10,12 +10,16 @@ class moments(frxxData):
 	def __init__(self, ds: xr.Dataset | None = None):
 		super().__init__()
 
-		self.nonDataVars += ["ray_start_end", "pulse_boundaries", "pol"]
+		self.nonDataVars += [
+			"ray_start_end", "pulse_boundaries", "pol", 
+			"pulse_boundaries", "SNR_threshold", "mask",
+		]
 
 		self.requiredBools["ray_start_end"] = False
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["pol"] = False
 		self.requiredBools["SNR_threshold"] = False
+		self.requiredBools["mask"] = False
 
 		if ds is None:
 			self.ds.attrs["frxx_data_type"] = "moments"
@@ -95,9 +99,29 @@ class moments(frxxData):
 
 		self.requiredBools["SNR_threshold"] = True
 
+	def setMask(self, mask: NDArray[np.bool_], comment: str):
+		if mask.shape != (len(self.ds["time"]), len(self.ds["range"])):
+			raise ValueError("Mask shape doesnn't match data shape.")
+		
+		self.ds["mask"] = self._constructDataArray(
+			data = mask,
+			dims = ["time", "range"],
+			encoding = {
+				"dtype": "int8",
+				"_FillValue": _FILL_VALUES["int8"]
+			},
+			attrs ={
+				"comment": "Boolean data mask. " + comment
+			}
+		)
+		
+		self.requiredBools["mask"] = True
+
 	def addDataField(self, name: str, data: NDArray, attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all moment object variables.")
+		if data.shape != (len(self.ds["time"]), len(self.ds["range"])):
+			raise ValueError("Data shape shape doesn't match dims.")
 
 		self.ds[name] = self._constructDataArray(
 			data = data,
@@ -129,6 +153,10 @@ class moments(frxxData):
 		vars = ["SNR_threshold"]
 		self.requiredBools["SNR_threshold"] = self._checkVars(vars, False)
 
+		#check mask
+		vars = ["mask"]
+		self.requiredBools["mask"] = self._checkVars(vars)
+
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()
 		if not base:
@@ -137,4 +165,17 @@ class moments(frxxData):
 			return False
 		return True
 
+	@property
+	def pb(self) -> NDArray:
+		return np.ascontiguousarray(self.ds["pulse_boundaries"].data).astype(np.int64)
 	
+	@property
+	def mask(self) -> NDArray:
+		return np.ascontiguousarray(self.ds["mask"].data).astype(bool)
+	
+	def _getattr__(self, name):
+		if name in self.nonDataVars:
+			raise ValueError("Non data variables have their own attribute getters.")
+		if name not in self.ds:
+			raise ValueError("Attribute not found in dataset.")
+		return self.ds[name]

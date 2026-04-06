@@ -120,11 +120,11 @@ def _computeMultipleSpectra(
     return SH, SV, SX
 
 @njit(
-    'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:],))'
+    'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:]))'
     '(complex64[:,:], complex64[:,:], float64[:], float64, float64, int64, int64, optional(int64))',
     cache=True
 )
-def bootstrapDPSD(
+def computeRay(
     iqh: NDArray, iqv: NDArray, window, noiseh, noisev, nBootstraps, K = 1, NFT = None
 ):
     r = 0.5 - np.sqrt(np.mean(np.power(window, 2)))*0.5

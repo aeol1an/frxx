@@ -45,7 +45,7 @@ def calculateDualPolPPIACF(
 	pulseBoundaries, azUnique = findPulseBoundaries(az, azSpacing, beamOverlapDeg)
 	middlePulses = np.rint(pulseBoundaries.mean(axis=1)).astype(np.int32)
 
-	mAz = az[middlePulses]
+	mAz = azUnique
 	mEl = el[middlePulses]
 	mTime = time[middlePulses]
 

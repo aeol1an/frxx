@@ -363,3 +363,20 @@ class IQ(frxxData):
 		if (len(self.ds["pol"]) != 2):
 			raise ValueError("Vertical channel iq only availible for dual-pol data.")
 		return np.ascontiguousarray(self.ds["iq"].data[1]).view(np.complex64).squeeze()
+	
+	@property
+	def N0(self):
+		if (len(self.ds["pol"]) == 2):
+			return self.ds["noise"].values
+		else:
+			return self.ds["noise"].values[0]
+	
+	@property
+	def N0H(self):
+		return self.ds["noise"].values[0]
+	
+	@property
+	def N0V(self):
+		if (len(self.ds["pol"]) != 2):
+			raise ValueError("Vertical channel iq only availible for dual-pol data.")
+		return self.ds["noise"].values[1]
