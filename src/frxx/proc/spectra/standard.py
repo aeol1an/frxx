@@ -479,9 +479,12 @@ def calculatePPIDPSD(
 	for i in range(len(PSDH)):
 		imask = ((PSDH[i]-iq.N0H) > SNRthresholddB[0]) & \
 				((PSDV[i]-iq.N0H) > SNRthresholddB[1]) & \
+				~np.isnan(PSDH[i]) & \
+				~np.isnan(PSDV[i]) & \
 				~np.isnan(sZDR[i])
+				
 		mask.append(imask)
-	s.setMask(mask, "True if SNR below threshold or linear ZDR below 0 (due to correction).")
+	s.setMask(mask, "True if SNR below threshold or linear PSDs, ZDR below 0.")
 
 	encoding = {
 		"dtype": "int16",

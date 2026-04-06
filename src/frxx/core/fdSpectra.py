@@ -8,27 +8,6 @@ from numba import njit, prange
 
 from .frxxData import _FILL_VALUES, frxxData
 
-@njit(parallel=True, cache=True)
-def _padToArrayBool(data, padLen):
-	nRays = len(data)
-	nRows = data[0].shape[0]
-	out = np.full((nRays, nRows, padLen), np.iinfo(np.int8).min, dtype=np.int8)
-	for i in prange(nRays):
-		ray = data[i]
-		v = ray.shape[1]
-		out[i, :, :v] = ray.astype(np.int8)
-	return out
-
-@njit(parallel=True, cache=True)
-def _padToArrayFloat(data, padLen):
-	nRays = len(data)
-	nRows = data[0].shape[0]
-	out = np.full((nRays, nRows, padLen), np.float32(np.nan), dtype=np.float32)
-	for i in prange(nRays):
-		ray = data[i]
-		v = ray.shape[1]
-		out[i, :, :v] = ray
-	return out
 class spectra(frxxData):
 	def __init__(self, ds: xr.Dataset | None = None):
 		super().__init__()
@@ -119,6 +98,9 @@ class spectra(frxxData):
 			raise ValueError("Number of rays passed does not equal length of time coordinate.")
 		
 		lens = []
+		s = []
+		e = []
+		curr = 0
 		for i, ray in enumerate(mask):
 			shape = ray.shape
 			if len(shape) != 2:
@@ -127,21 +109,28 @@ class spectra(frxxData):
 			if len(self.ds["range"]) != r:
 				raise ValueError(f"Range (1st) dim of ray (i={i}, length={r} "
 					 			"must match range coordinate!")
+			s.append(curr)
 			lens.append(v)
+			curr += v
+			e.append(curr-1)
 
-		maxLen = max(lens)
+		lenSum = sum(lens)
 		lens = np.array(lens, dtype=np.int32)
-		self.ds = self.ds.assign_coords(velocity=np.arange(maxLen))
+		s = np.array(s, dtype=np.int64).reshape(-1, 1)
+		e = np.array(e, dtype=np.int64).reshape(-1, 1)
+		spectraBoundaries = np.concatenate([s,e], axis=1)
+
+		self.ds = self.ds.assign_coords(velocity=np.arange(lenSum))
 		self.ds["velocity"].attrs = {
 			"long_name": "doppler_velocity_spectral_components",
-			"units": "integer spectral component indices"
+			"units": "integer spectral component indices concatenated along time axis."
 		}
 		self.ds["velocity"].encoding = {
 			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
+			"_FillValue": _FILL_VALUES["int64"]
 		}
 		self.ds["vlens"] = self._constructDataArray(
-			data = np.array(lens, dtype=np.int32),
+			data = lens,
 			dims = ["time"],
 			attrs = {
 				"comment": f"Lenth of velocity axis for given ray."
@@ -151,13 +140,24 @@ class spectra(frxxData):
 				"_FillValue": _FILL_VALUES["int32"]
 			}
 		)
+		self.ds["spectra_boundaries"] = self._constructDataArray(
+			data = spectraBoundaries,
+			dims = ["time", "ray_start_end"],
+			attrs = {
+				"comment": f"Start and end indexes of spectra for a given ray."
+			},
+			encoding = {
+				"dtype": "int64",
+				"_FillValue": _FILL_VALUES["int32"]
+			}
+		)
+		
 
-		padLen = len(self.ds["velocity"])
-		paddedData = _padToArrayBool(mask, padLen)
+		concatData = np.concatenate(mask, axis=1)
 
 		self.ds["mask"] = self._constructDataArray(
-			data = paddedData,
-			dims = ["time", "range", "velocity"],
+			data = concatData,
+			dims = ["range", "velocity"],
 			encoding = {
 				"dtype": "int8",
 				"_FillValue": _FILL_VALUES["int8"]
@@ -194,12 +194,11 @@ class spectra(frxxData):
 		if not np.array_equal(lens, self.ds["vlens"].values):
 			raise ValueError("All data variables must have the same shape.")
 
-		padLen = len(self.ds["velocity"])
-		paddedData = _padToArrayFloat(data, padLen)
+		concatData = np.concatenate(data, axis=1)
 
 		self.ds[name] = self._constructDataArray(
-			data = paddedData,
-			dims = ["time", "range", "velocity"],
+			data = concatData,
+			dims = ["range", "velocity"],
 			attrs = attrs,
 			encoding = encoding
 		)
@@ -237,10 +236,12 @@ class spectra(frxxData):
 	
 	@property
 	def mask(self) -> List[NDArray[np.bool_]]:
+		if not self.requiredBools["mask"]:
+			raise AttributeError("Mask has not been set.")
 		data = []
-		self.ds["vlens"] = self.ds["vlens"].compute()
-		vlens = self.ds["vlens"].data	
-		data = [self.ds["mask"].data[i, :, :vlens[i]] for i in range(len(vlens))]
+		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
+		bnd = self.ds["spectra_boundaries"].data	
+		data = [self.ds["mask"].data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
 		return data
 
 	def __getattr__(self, name):
@@ -248,15 +249,8 @@ class spectra(frxxData):
 			raise ValueError("Non data variables have their own attribute getters.")
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
-		
 		data = []
-		self.ds["vlens"] = self.ds["vlens"].compute()
-		vlens = self.ds["vlens"].data	
-		data = [self.ds[name].data[i, :, :vlens[i]] for i in range(len(vlens))]
-		ret = {
-			"data": data,
-			"dims": self.ds[name].dims,
-		}
-		for k,v in self.ds[name].attrs.items():
-			ret[k] = v
-		return ret
+		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
+		bnd = self.ds["spectra_boundaries"].data	
+		data = [self.ds[name].data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
+		return data
