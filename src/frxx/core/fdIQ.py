@@ -20,16 +20,12 @@ class IQ(frxxData):
 		
 		self.nonDataVars += [
 			"iqdim",
-			"pol",
-			"noise",
 			"Zcal",
 			"Dcal",
 			"Pcal",
 		]
 
 		self.requiredBools["iqdim"] = False
-		self.requiredBools["pol"] = False
-		self.requiredBools["noise"] = False
 		self.requiredBools["calibration"] = False
 		self.requiredBools["source_file"] = False
 
@@ -57,40 +53,6 @@ class IQ(frxxData):
 			valid = self.validateSelf()
 			if not valid:
 				raise RuntimeError("Invalid frxxIQ format. See above.")
-
-	def setPol(self, nPol: int = 2):
-		self.ds = self.ds.assign_coords(pol=np.arange(nPol))
-		self.ds["pol"].attrs = {
-			"long_name": "polarized_channels",
-			"comment": "In the case of dual-pol, 0 is H and 1 is V"
-		}
-		self.ds["pol"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
-		}
-
-		self.requiredBools["pol"] = True
-
-	def setNoisedB(self, n0_dB: Union[NDArray[np.floating], Sequence[float]]):
-		if not self.requiredBools["pol"]:
-			raise RuntimeError("Number of polarizations not set yet.")
-		if len(n0_dB) != len(self.ds["pol"]):
-			raise RuntimeError("Noise array length should equal number of polarizations.")
-		
-		self.ds["noise"] = xr.DataArray(
-			data = np.array(n0_dB),
-			dims = ["pol"],
-			attrs = {
-				"units": "dB",
-				"long_name": "Noise_estimate_from_transmitter",
-			}
-		)
-		self.ds["noise"].encoding = {
-			"dtype": "float64",
-			"_FillValue": _FILL_VALUES["float64"]
-		}
-
-		self.requiredBools["noise"] = True
 
 	def setCal(self, Zcal_db: Union[NDArray[np.floating], Sequence[float]], Dcal_db: float | None = None, Pcal_deg: float | None = None):
 		if not self.requiredBools["pol"]:
@@ -190,14 +152,6 @@ class IQ(frxxData):
 		#check iqdim
 		vars = ["iqdim"]
 		self.requiredBools["iqdim"] = self._checkVars(vars)
-
-		#check pol
-		vars = ["pol"]
-		self.requiredBools["pol"] = self._checkVars(vars)
-
-		#check noise
-		vars = ["noise"]
-		self.requiredBools["noise"] = self._checkVars(vars)
 
 		#check calibration
 		self.requiredBools["calibration"] = (
@@ -363,20 +317,3 @@ class IQ(frxxData):
 		if (len(self.ds["pol"]) != 2):
 			raise ValueError("Vertical channel iq only availible for dual-pol data.")
 		return np.ascontiguousarray(self.ds["iq"].data[1]).view(np.complex64).squeeze()
-	
-	@property
-	def N0(self):
-		if (len(self.ds["pol"]) == 2):
-			return self.ds["noise"].values
-		else:
-			return self.ds["noise"].values[0]
-	
-	@property
-	def N0H(self):
-		return self.ds["noise"].values[0]
-	
-	@property
-	def N0V(self):
-		if (len(self.ds["pol"]) != 2):
-			raise ValueError("Vertical channel iq only availible for dual-pol data.")
-		return self.ds["noise"].values[1]

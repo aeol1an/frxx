@@ -4,8 +4,31 @@ import xarray as xr
 from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
+from numba import njit, prange
+
 from .frxxData import _FILL_VALUES, frxxData
 
+@njit(parallel=True, cache=True)
+def _padToArrayBool(data, padLen):
+	nRays = len(data)
+	nRows = data[0].shape[0]
+	out = np.full((nRays, nRows, padLen), np.iinfo(np.int8).min, dtype=np.int8)
+	for i in prange(nRays):
+		ray = data[i]
+		v = ray.shape[1]
+		out[i, :, :v] = ray.astype(np.int8)
+	return out
+
+@njit(parallel=True, cache=True)
+def _padToArrayFloat(data, padLen):
+	nRays = len(data)
+	nRows = data[0].shape[0]
+	out = np.full((nRays, nRows, padLen), np.float32(np.nan), dtype=np.float32)
+	for i in prange(nRays):
+		ray = data[i]
+		v = ray.shape[1]
+		out[i, :, :v] = ray
+	return out
 class spectra(frxxData):
 	def __init__(self, ds: xr.Dataset | None = None):
 		super().__init__()
@@ -13,8 +36,6 @@ class spectra(frxxData):
 		self.nonDataVars += [
 			   "ray_start_end", 
 			   "pulse_boundaries",
-			   "pol",
-			   "noise",
 			   "SNR_threshold",
 			   "mask",
 			   "velocity",
@@ -23,8 +44,6 @@ class spectra(frxxData):
 
 		self.requiredBools["ray_start_end"] = False
 		self.requiredBools["pulse_boundaries"] = False
-		self.requiredBools["pol"] = False
-		self.requiredBools["noise"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
 
@@ -69,40 +88,6 @@ class spectra(frxxData):
 		}
 
 		self.requiredBools["pulse_boundaries"] = True
-
-	def setPol(self, nPol: int = 2):
-		self.ds = self.ds.assign_coords(pol=np.arange(nPol))
-		self.ds["pol"].attrs = {
-			"long_name": "polarized_channels",
-			"comment": "In the case of dual-pol, 0 is H and 1 is V"
-		}
-		self.ds["pol"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
-		}
-
-		self.requiredBools["pol"] = True
-
-	def setNoisedB(self, n0_dB: Union[NDArray[np.floating], Sequence[float]]):
-		if not self.requiredBools["pol"]:
-			raise RuntimeError("Number of polarizations not set yet.")
-		if len(n0_dB) != len(self.ds["pol"]):
-			raise RuntimeError("Noise array length should equal number of polarizations.")
-		
-		self.ds["noise"] = xr.DataArray(
-			data = np.array(n0_dB),
-			dims = ["pol"],
-			attrs = {
-				"units": "dB",
-				"long_name": "Noise_estimate_from_transmitter",
-			}
-		)
-		self.ds["noise"].encoding = {
-			"dtype": "float64",
-			"_FillValue": _FILL_VALUES["float64"]
-		}
-
-		self.requiredBools["noise"] = True
 
 	def setSNRThreshold(self, snrt_db: Union[NDArray[np.floating], Sequence[float]]):
 		if not self.requiredBools["pol"]:
@@ -168,11 +153,7 @@ class spectra(frxxData):
 		)
 
 		padLen = len(self.ds["velocity"])
-		paddedData = []
-		for ray in mask:
-			_, v = ray.shape
-			paddedData.append(np.pad(ray, ((0,0),(0,padLen-v)), constant_values=_FILL_VALUES["int8"]))
-		paddedData = np.array(paddedData, dtype=np.float32)
+		paddedData = _padToArrayBool(mask, padLen)
 
 		self.ds["mask"] = self._constructDataArray(
 			data = paddedData,
@@ -214,11 +195,7 @@ class spectra(frxxData):
 			raise ValueError("All data variables must have the same shape.")
 
 		padLen = len(self.ds["velocity"])
-		paddedData = []
-		for ray in data:
-			_, v = ray.shape
-			paddedData.append(np.pad(ray, ((0,0),(0,padLen-v)), constant_values=np.nan))
-		paddedData = np.array(paddedData, dtype=np.float32)
+		paddedData = _padToArrayFloat(data, padLen)
 
 		self.ds[name] = self._constructDataArray(
 			data = paddedData,
@@ -242,10 +219,6 @@ class spectra(frxxData):
 		vars = ["pulse_boundaries"]
 		self.requiredBools["pulse_boundaries"] = self._checkVars(vars)
 
-		#check pol
-		vars = ["pol"]
-		self.requiredBools["pol"] = self._checkVars(vars)
-
 		#check SNR_threshold
 		vars = ["SNR_threshold"]
 		self.requiredBools["SNR_threshold"] = self._checkVars(vars, False)
@@ -265,42 +238,25 @@ class spectra(frxxData):
 	@property
 	def mask(self) -> List[NDArray[np.bool_]]:
 		data = []
-		self.ds["vlen"] = self.ds["vlen"].compute()
-		vlens = self.ds["vlen"].data	
+		self.ds["vlens"] = self.ds["vlens"].compute()
+		vlens = self.ds["vlens"].data	
 		data = [self.ds["mask"].data[i, :, :vlens[i]] for i in range(len(vlens))]
 		return data
 
-	@property
-	def N0(self):
-		if (len(self.ds["pol"]) == 2):
-			return self.ds["noise"].values
-		else:
-			return self.ds["noise"].values[0]
-	
-	@property
-	def N0H(self):
-		return self.ds["noise"].values[0]
-	
-	@property
-	def N0V(self):
-		if (len(self.ds["pol"]) != 2):
-			raise ValueError("Vertical channel iq only availible for dual-pol data.")
-		return self.ds["noise"].values[1]
-
-	def _getattr__(self, name):
+	def __getattr__(self, name):
 		if name in self.nonDataVars:
 			raise ValueError("Non data variables have their own attribute getters.")
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
 		
 		data = []
-		self.ds["vlen"] = self.ds["vlen"].compute()
-		vlens = self.ds["vlen"].data	
+		self.ds["vlens"] = self.ds["vlens"].compute()
+		vlens = self.ds["vlens"].data	
 		data = [self.ds[name].data[i, :, :vlens[i]] for i in range(len(vlens))]
 		ret = {
 			"data": data,
 			"dims": self.ds[name].dims,
 		}
-		for k,v in self.ds[name].attrs:
+		for k,v in self.ds[name].attrs.items():
 			ret[k] = v
 		return ret

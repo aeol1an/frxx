@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, List, Union, Sequence
 from numpy.typing import NDArray
 
 from pathlib import Path
@@ -12,6 +12,7 @@ import numpy as np
 import xarray as xr
 
 _FILL_VALUES = {
+	"int8": np.iinfo(np.int8).min,
 	"int16": np.iinfo(np.int16).min,
 	"int32": np.iinfo(np.int32).min,
 	"int64": np.iinfo(np.int64).min,
@@ -42,6 +43,8 @@ class frxxData(ABC):
 			"prt",
 			"wavelength",
 			"nyquist_velocity",
+			"pol",
+			"noise"
 		]
 
 		self.rootAttrs = {
@@ -72,6 +75,8 @@ class frxxData(ABC):
 			"pulse_width": False,
 			"prt": False,
 			"wavelength": False,
+			"pol": False,
+			"noise": False
 		}
 
 		self.optionalBools = {
@@ -511,6 +516,40 @@ class frxxData(ABC):
 			
 		self.requiredBools["wavelength"] = True
 
+	def setPol(self, nPol: int = 2):
+		self.ds = self.ds.assign_coords(pol=np.arange(nPol))
+		self.ds["pol"].attrs = {
+			"long_name": "polarized_channels",
+			"comment": "In the case of dual-pol, 0 is H and 1 is V"
+		}
+		self.ds["pol"].encoding = {
+			"dtype": "int32",
+			"_FillValue": _FILL_VALUES["int32"]
+		}
+
+		self.requiredBools["pol"] = True
+
+	def setNoisedB(self, n0_dB: Union[NDArray[np.floating], Sequence[float]]):
+		if not self.requiredBools["pol"]:
+			raise RuntimeError("Number of polarizations not set yet.")
+		if len(n0_dB) != len(self.ds["pol"]):
+			raise RuntimeError("Noise array length should equal number of polarizations.")
+		
+		self.ds["noise"] = xr.DataArray(
+			data = np.array(n0_dB),
+			dims = ["pol"],
+			attrs = {
+				"units": "dB",
+				"long_name": "Noise_estimate_from_transmitter",
+			}
+		)
+		self.ds["noise"].encoding = {
+			"dtype": "float64",
+			"_FillValue": _FILL_VALUES["float64"]
+		}
+
+		self.requiredBools["noise"] = True
+
 	def appendHistory(self, history: str):
 		self.rootAttrs["history"] += " "+history
 		self.optionalBools["history"] = True
@@ -635,6 +674,14 @@ class frxxData(ABC):
 		vars = ["wavelength", "nyquist_velocity"]
 		self.requiredBools["wavelength"] = self._checkVars(vars)
 
+		#check pol
+		vars = ["pol"]
+		self.requiredBools["pol"] = self._checkVars(vars)
+
+		#check noise
+		vars = ["noise"]
+		self.requiredBools["noise"] = self._checkVars(vars)
+
 	@abstractmethod
 	def validateSelf(self) -> bool:
 		pass
@@ -700,3 +747,20 @@ class frxxData(ABC):
 	@property
 	def fixedAngle(self) -> float:
 		return np.ascontiguousarray(self.ds["fixed_angle"].data)[0]
+	
+	@property
+	def N0(self):
+		if (len(self.ds["pol"]) == 2):
+			return self.ds["noise"].values
+		else:
+			return self.ds["noise"].values[0]
+	
+	@property
+	def N0H(self):
+		return self.ds["noise"].values[0]
+	
+	@property
+	def N0V(self):
+		if (len(self.ds["pol"]) != 2):
+			raise ValueError("Vertical channel iq only availible for dual-pol data.")
+		return self.ds["noise"].values[1]

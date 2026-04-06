@@ -103,6 +103,7 @@ def calculateDualPolPPIACF(
 	m.setPrtSeconds(iq.prt[middlePulses])
 	m.setWavelengthMeters(iq.wavelength[middlePulses])
 	m.setPol(2)
+	m.setNoisedB(iq.N0)
 	m.setSNRThreshold(SNRthresholddB)
 	m.setPulseBoundaries(pulseBoundaries)
 

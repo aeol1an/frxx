@@ -9,67 +9,357 @@ from typing import Tuple
 import numpy as np
 from ...utils import numbaWindows as wn
 
-from numba import njit, prange
+from numba import jit, njit, prange
 
 import warnings
 
-@njit(
-	'Tuple((List(float64[:,:]), List(float64[:,:]), '
-	'List(float64[:,:]), List(float64[:,:])))'
-	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, optional(int64), '
-	'float64, float64, int64, int64, optional(int64), optional(int64), optional(int64))',
-	parallel=True, cache=True
+import time
+import time as timel
+
+@jit(
+	forceobj=True, cache=False
 )
 def _computeBootstrapDPSD(
 	iqh, iqv, 
 	pulseBoundaries, azIncreasing, 
 	window, 
-	swathPulses, 
-	nBootstraps, 
-	K = 1, KOffset = None, 
-	avgStrat = None,
-	NFT = None
+	swathPulses = -1, 
+	nBootstraps = 50, 
+	K = 1, KOffset = 0, 
+	avgStrat = 1,
+	NFT = -1
 ):
 	naz = len(pulseBoundaries)
 	iranges = np.array([0, iqh.shape[0]-1], dtype=np.int64)
 
+	# Pre-allocate typed lists so numba knows it's List(float64[:,:])
+	dummy = np.empty((0, 0), dtype=np.float64)
+	PSDH = [dummy]
+	PSDV = [dummy]
+	sZDR = [dummy]
+	sRHOHV = [dummy]
+	for _ in range(naz - 1):
+		PSDH.append(dummy)
+		PSDV.append(dummy)
+		sZDR.append(dummy)
+		sRHOHV.append(dummy)
+
+	t_subset = 0.0
+	t_compute = 0.0
+
+	#ugly code, sorry! Numba does not like function pointers, and I don't want branching in my loop.
 	if window == 0:
-		w = wn.rectangular
+		for az in range(naz):
+			t0 = time.time()
+			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+				iqh, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			iqvs, _, _ = algs.res.subsetIQnumba(
+				iqv, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			t1 = time.time()
+			wValues = wn.rectangular(nSAZ)
+			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+			t2 = time.time()
+			t_subset += t1 - t0
+			t_compute += t2 - t1
+			PSDH[az] = np.ascontiguousarray(h)
+			PSDV[az] = np.ascontiguousarray(v)
+			sZDR[az] = np.ascontiguousarray(d)
+			sRHOHV[az] = np.ascontiguousarray(r)
 	elif window == 1:
-		w = wn.hanning
+		for az in range(naz):
+			t0 = time.time()
+			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+				iqh, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			iqvs, _, _ = algs.res.subsetIQnumba(
+				iqv, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			t1 = time.time()
+			wValues = wn.hanning(nSAZ)
+			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+			t2 = time.time()
+			t_subset += t1 - t0
+			t_compute += t2 - t1
+			PSDH[az] = np.ascontiguousarray(h)
+			PSDV[az] = np.ascontiguousarray(v)
+			sZDR[az] = np.ascontiguousarray(d)
+			sRHOHV[az] = np.ascontiguousarray(r)
 	elif window == 2:
-		w = wn.hamming
+		for az in range(naz):
+			t0 = time.time()
+			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+				iqh, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			iqvs, _, _ = algs.res.subsetIQnumba(
+				iqv, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			t1 = time.time()
+			wValues = wn.hamming(nSAZ)
+			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+			t2 = time.time()
+			t_subset += t1 - t0
+			t_compute += t2 - t1
+			PSDH[az] = np.ascontiguousarray(h)
+			PSDV[az] = np.ascontiguousarray(v)
+			sZDR[az] = np.ascontiguousarray(d)
+			sRHOHV[az] = np.ascontiguousarray(r)
 	elif window == 3:
-		w = wn.blackman
+		for az in range(naz):
+			t0 = time.time()
+			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+				iqh, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			iqvs, _, _ = algs.res.subsetIQnumba(
+				iqv, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			t1 = time.time()
+			wValues = wn.blackman(nSAZ)
+			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+			t2 = time.time()
+			t_subset += t1 - t0
+			t_compute += t2 - t1
+			PSDH[az] = np.ascontiguousarray(h)
+			PSDV[az] = np.ascontiguousarray(v)
+			sZDR[az] = np.ascontiguousarray(d)
+			sRHOHV[az] = np.ascontiguousarray(r)
 	elif window == 4:
-		w = wn.bartlett
-	elif window == 5:
-		w = wn.tukey
+		for az in range(naz):
+			t0 = time.time()
+			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+				iqh, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			iqvs, _, _ = algs.res.subsetIQnumba(
+				iqv, 
+				az, naz, azIncreasing, 
+				pulseBoundaries, iranges, swathPulses, 
+				K, KOffset, 
+				avgStrat
+			)
+			t1 = time.time()
+			wValues = wn.bartlett(nSAZ)
+			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+			t2 = time.time()
+			t_subset += t1 - t0
+			t_compute += t2 - t1
+			PSDH[az] = np.ascontiguousarray(h)
+			PSDV[az] = np.ascontiguousarray(v)
+			sZDR[az] = np.ascontiguousarray(d)
+			sRHOHV[az] = np.ascontiguousarray(r)
 	else:
 		raise ValueError("Bad window selection.")
 
-	result = ([],[],[],[])
-	for az in prange(naz):
-		iqhs, _, nSAZ = algs.res.subsetIQnumba(
-			iqh, 
-			az, naz, azIncreasing, 
-			pulseBoundaries, iranges, swathPulses, 
-			K, KOffset, 
-			avgStrat
-		)
-		iqvs, _, _ = algs.res.subsetIQnumba(
-			iqv, 
-			az, naz, azIncreasing, 
-			pulseBoundaries, iranges, swathPulses, 
-			K, KOffset, 
-			avgStrat
-		)
-		wValues = w(nSAZ)
-		R = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
-		for i in range(len(R)):
-			result[i].append(R[i])
+	print("subsetIQnumba total:", t_subset, "s")
+	print("computeRay total:", t_compute, "s")
 
-	return result
+	return (PSDH, PSDV, sZDR, sRHOHV)
+
+# @njit(
+# 	'Tuple((List(float64[:,::1]), List(float64[:,::1]), '
+# 	'List(float64[:,::1]), List(float64[:,::1])))'
+# 	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, int64, '
+# 	'int64, int64, int64, int64, int64)',
+# 	parallel=True, cache=True
+# )
+# def _computeBootstrapDPSD(
+# 	iqh, iqv, 
+# 	pulseBoundaries, azIncreasing, 
+# 	window, 
+# 	swathPulses = -1, 
+# 	nBootstraps = 50, 
+# 	K = 1, KOffset = 0, 
+# 	avgStrat = 1,
+# 	NFT = -1
+# ):
+# 	naz = len(pulseBoundaries)
+# 	iranges = np.array([0, iqh.shape[0]-1], dtype=np.int64)
+
+# 	# Pre-allocate typed lists so numba knows it's List(float64[:,:])
+# 	dummy = np.empty((0, 0), dtype=np.float64)
+# 	PSDH = [dummy]
+# 	PSDV = [dummy]
+# 	sZDR = [dummy]
+# 	sRHOHV = [dummy]
+# 	for _ in range(naz - 1):
+# 		PSDH.append(dummy)
+# 		PSDV.append(dummy)
+# 		sZDR.append(dummy)
+# 		sRHOHV.append(dummy)
+
+# 	#ugly code, sorry! Numba does not like function pointers, and I don't want branching in my loop.
+# 	if window == 0:
+# 		for az in prange(naz):
+# 			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 				iqh, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			iqvs, _, _ = algs.res.subsetIQnumba(
+# 				iqv, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			wValues = wn.rectangular(nSAZ)
+# 			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 			PSDH[az] = np.ascontiguousarray(h)
+# 			PSDV[az] = np.ascontiguousarray(v)
+# 			sZDR[az] = np.ascontiguousarray(d)
+# 			sRHOHV[az] = np.ascontiguousarray(r)
+# 	elif window == 1:
+# 		for az in prange(naz):
+# 			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 				iqh, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			iqvs, _, _ = algs.res.subsetIQnumba(
+# 				iqv, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			wValues = wn.hanning(nSAZ)
+# 			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 			PSDH[az] = np.ascontiguousarray(h)
+# 			PSDV[az] = np.ascontiguousarray(v)
+# 			sZDR[az] = np.ascontiguousarray(d)
+# 			sRHOHV[az] = np.ascontiguousarray(r)
+# 	elif window == 2:
+# 		for az in prange(naz):
+# 			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 				iqh, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			iqvs, _, _ = algs.res.subsetIQnumba(
+# 				iqv, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			wValues = wn.hamming(nSAZ)
+# 			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 			PSDH[az] = np.ascontiguousarray(h)
+# 			PSDV[az] = np.ascontiguousarray(v)
+# 			sZDR[az] = np.ascontiguousarray(d)
+# 			sRHOHV[az] = np.ascontiguousarray(r)
+# 	elif window == 3:
+# 		for az in prange(naz):
+# 			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 				iqh, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			iqvs, _, _ = algs.res.subsetIQnumba(
+# 				iqv, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			wValues = wn.blackman(nSAZ)
+# 			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 			PSDH[az] = np.ascontiguousarray(h)
+# 			PSDV[az] = np.ascontiguousarray(v)
+# 			sZDR[az] = np.ascontiguousarray(d)
+# 			sRHOHV[az] = np.ascontiguousarray(r)
+# 	elif window == 4:
+# 		for az in prange(naz):
+# 			iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 				iqh, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			iqvs, _, _ = algs.res.subsetIQnumba(
+# 				iqv, 
+# 				az, naz, azIncreasing, 
+# 				pulseBoundaries, iranges, swathPulses, 
+# 				K, KOffset, 
+# 				avgStrat
+# 			)
+# 			wValues = wn.bartlett(nSAZ)
+# 			h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 			PSDH[az] = np.ascontiguousarray(h)
+# 			PSDV[az] = np.ascontiguousarray(v)
+# 			sZDR[az] = np.ascontiguousarray(d)
+# 			sRHOHV[az] = np.ascontiguousarray(r)
+# 	# elif window == 5:
+# 		# for az in range(naz):
+# 		# 	iqhs, _, nSAZ = algs.res.subsetIQnumba(
+# 		# 		iqh, 
+# 		# 		az, naz, azIncreasing, 
+# 		# 		pulseBoundaries, iranges, swathPulses, 
+# 		# 		K, KOffset, 
+# 		# 		avgStrat
+# 		# 	)
+# 		# 	iqvs, _, _ = algs.res.subsetIQnumba(
+# 		# 		iqv, 
+# 		# 		az, naz, azIncreasing, 
+# 		# 		pulseBoundaries, iranges, swathPulses, 
+# 		# 		K, KOffset, 
+# 		# 		avgStrat
+# 		# 	)
+# 		# 	wValues = wn.tukey(nSAZ)
+# 		# 	h, v, d, r = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+# 		# 	PSDH[az] = np.ascontiguousarray(h)
+# 		# 	PSDV[az] = np.ascontiguousarray(v)
+# 		# 	sZDR[az] = np.ascontiguousarray(d)
+# 		# 	sRHOHV[az] = np.ascontiguousarray(r)
+# 	else:
+# 		raise ValueError("Bad window selection.")
+
+# 	return (PSDH, PSDV, sZDR, sRHOHV)
 
 def calculatePPIDPSD(
 	iq: IQ, m: moments | None = None, 
@@ -95,9 +385,13 @@ def calculatePPIDPSD(
 
 	if swathPulses is not None and swathPulses < 2:
 		raise ValueError("swathPulses must be greater than 2.")
+	if swathPulses is None:
+		swathPulses = -1
 	
 	if NFT is not None and NFT < 2:
 		raise ValueError("NFT must be greater than 2.")
+	if NFT is None:
+		NFT = -1
 
 	if window == "rectangular":
 		w = 0
@@ -109,8 +403,8 @@ def calculatePPIDPSD(
 		w = 3
 	elif window == "bartlett":
 		w = 4
-	elif window == "tukey":
-		w = 5
+	# elif window == "tukey":
+	# 	w = 5
 	else:
 		raise ValueError("Unsupported Window.")
 	
@@ -176,9 +470,11 @@ def calculatePPIDPSD(
 	s.setPrtSeconds(prt)
 	s.setWavelengthMeters(wavelength)
 	s.setPol(2)
+	s.setNoisedB(iq.N0)
 	s.setSNRThreshold(SNRthresholddB)
 	s.setPulseBoundaries(pulseBoundaries)
 
+	t0 = timel.time()
 	mask = []
 	for i in range(len(PSDH)):
 		imask = ((PSDH[i]-iq.N0H) > SNRthresholddB[0]) & \
@@ -186,13 +482,6 @@ def calculatePPIDPSD(
 				~np.isnan(sZDR[i])
 		mask.append(imask)
 	s.setMask(mask, "True if SNR below threshold or linear ZDR below 0 (due to correction).")
-
-	encoding = {
-		"dtype": "int16",
-		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.01,
-		"add_offset": 0.0
-	}
 
 	encoding = {
 		"dtype": "int16",
@@ -226,5 +515,8 @@ def calculatePPIDPSD(
 			"units": "unitless",
 		}
 	)
+
+	t1 = timel.time()
+	print("question total:", t1-t0, "s")
 
 	return s

@@ -11,13 +11,12 @@ class moments(frxxData):
 		super().__init__()
 
 		self.nonDataVars += [
-			"ray_start_end", "pulse_boundaries", "pol", 
+			"ray_start_end", "pulse_boundaries", 
 			"pulse_boundaries", "SNR_threshold", "mask",
 		]
 
 		self.requiredBools["ray_start_end"] = False
 		self.requiredBools["pulse_boundaries"] = False
-		self.requiredBools["pol"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
 
@@ -64,19 +63,6 @@ class moments(frxxData):
 		}
 
 		self.requiredBools["pulse_boundaries"] = True
-
-	def setPol(self, nPol: int = 2):
-		self.ds = self.ds.assign_coords(pol=np.arange(nPol))
-		self.ds["pol"].attrs = {
-			"long_name": "polarized_channels",
-			"comment": "In the case of dual-pol, 0 is H and 1 is V"
-		}
-		self.ds["pol"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int32"]
-		}
-
-		self.requiredBools["pol"] = True
 
 	def setSNRThreshold(self, snrt_db: Union[NDArray[np.floating], Sequence[float]]):
 		if not self.requiredBools["pol"]:
@@ -144,10 +130,6 @@ class moments(frxxData):
 		#check pulse_boundaries
 		vars = ["pulse_boundaries"]
 		self.requiredBools["pulse_boundaries"] = self._checkVars(vars)
-
-		#check pol
-		vars = ["pol"]
-		self.requiredBools["pol"] = self._checkVars(vars)
 
 		#check SNR_threshold
 		vars = ["SNR_threshold"]

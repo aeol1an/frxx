@@ -11,8 +11,15 @@ from ...utils.numbaHelpers import unwrap_i64
     parallel=False, cache=True
 )
 def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
-    CX_left = 0.5 * (VH[0]/VH[-1] + VV[0]/VV[-1])
-    CX_right = 0.5 * (VH[-1]/VH[0] + VV[-1]/VV[0])
+    # Guard CX
+    if abs(VH[-1]) < 1e-30 or abs(VH[0]) < 1e-30 or abs(VV[-1]) < 1e-30 or abs(VV[0]) < 1e-30:
+        CX_left = np.complex64(1.0)
+        CX_right = np.complex64(1.0)
+    else:
+        CX_left = 0.5 * (np.complex128(VH[0]) / np.complex128(VH[-1]) +
+                        np.complex128(VV[0]) / np.complex128(VV[-1]))
+        CX_right = 0.5 * (np.complex128(VH[-1]) / np.complex128(VH[0]) +
+                        np.complex128(VV[-1]) / np.complex128(VV[0]))
 
     nr = int(round(M * r))
     negnr = -nr
@@ -51,13 +58,19 @@ def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
         accH = 0.0
         accV = 0.0
         for j in range(M):
-            vh = XH[boot_idx + j]
-            vv = XV[boot_idx + j]
-            WH[i, j] = vh
-            WV[i, j] = vv
+            vh = np.complex128(XH[boot_idx + j])
+            vv = np.complex128(XV[boot_idx + j])
+            WH[i, j] = np.complex64(vh)  # store back as 64
+            WV[i, j] = np.complex64(vv)
             accH += vh.real * vh.real + vh.imag * vh.imag
             accV += vv.real * vv.real + vv.imag * vv.imag
 
+
+        # Guard bootstrap scale
+        if accH < 1e-30:
+            accH = 1e-30
+        if accV < 1e-30:
+            accV = 1e-30
         # Pass 2: rescale + window in-place (row is hot in L1)
         scaleH = np.sqrt(R0H * M / accH)
         scaleV = np.sqrt(R0V * M / accV)
@@ -121,16 +134,16 @@ def _computeMultipleSpectra(
 
 # @njit(
 #     'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:]))'
-#     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, optional(int64))',
+#     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, int64)',
 #     cache=True
 # )
 @njit(
     'Tuple((float64[:,:], float64[:,:], float64[:,:], float64[:,:]))'
-    '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, optional(int64))',
+    '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, int64)',
     cache=True
 )
 def computeRay(
-    iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = None
+    iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = 1
 ):
     r = 0.5 - np.sqrt(np.mean(np.power(window, 2)))*0.5
 
@@ -139,21 +152,22 @@ def computeRay(
 
     N = NK//K
     
-    i64NFT = unwrap_i64(NFT, M)
+    if NFT <= 1:
+        NFT = M
 
     SH, SV, SX = _computeMultipleSpectra(
         iqh, iqv, window,
-        NK, M, i64NFT, nBootstraps, r
+        NK, M, NFT, nBootstraps, r
     )
 
-    tsh = np.empty((N, i64NFT), dtype=np.float64)
-    tsv = np.empty((N, i64NFT), dtype=np.float64)
-    tsx = np.empty((N, i64NFT), dtype=np.complex128)
-    td = np.empty((N, i64NFT), dtype=np.float64)
-    tr = np.empty((N, i64NFT), dtype=np.float64)
+    tsh = np.empty((N, NFT), dtype=np.float64)
+    tsv = np.empty((N, NFT), dtype=np.float64)
+    tsx = np.empty((N, NFT), dtype=np.complex128)
+    td = np.empty((N, NFT), dtype=np.float64)
+    tr = np.empty((N, NFT), dtype=np.float64)
 
     for i in range(N):
-        for j in range(i64NFT):
+        for j in range(NFT):
             sh = 0.0
             sv = 0.0
             sx = np.complex128(0)
@@ -164,8 +178,16 @@ def computeRay(
             tsh[i, j] = sh / K
             tsv[i, j] = sv / K
             tsx[i, j] = sx / K
-            td[i, j] = tsh[i, j] / tsv[i, j]
-            tr[i, j] = np.abs(tsx[i, j]) / np.sqrt(tsh[i, j] * tsv[i, j])
+            if tsv[i, j] < 1e-30:
+                td[i, j] = np.nan
+                tr[i, j] = np.nan
+            else:
+                td[i, j] = tsh[i, j] / tsv[i, j]
+                denom = np.sqrt(tsh[i, j] * tsv[i, j])
+                if denom < 1e-30:
+                    tr[i, j] = np.nan
+                else:
+                    tr[i, j] = np.abs(tsx[i, j]) / denom
 
     if K == 1:
         beta = (1-r)**(-3.3) - 2*((1-r)**1.1)
@@ -177,12 +199,20 @@ def computeRay(
     #COV = tsx
 
     trsquared = np.power(tr, 2)
+    for i in range(N):
+        for j in range(NFT):
+            if trsquared[i, j] < 1e-30:
+                trsquared[i, j] = 1e-30
 
     sZDR = td * (1 - (1 / (beta * K) * (1 - trsquared)))
     sRHOHV = tr * (1 - (1 / (beta * K) * ((np.power(1 - trsquared, 2)) / (4 * trsquared))))
 
-    for i in range(sZDR.shape[0]):
-        for j in range(sZDR.shape[1]):
+    for i in range(N):
+        for j in range(NFT):
+            if PSDH[i, j] < 0:
+                PSDH[i, j] = np.nan
+            if PSDV[i, j] < 0:
+                PSDV[i, j] = np.nan
             if sZDR[i, j] < 0:
                 sZDR[i, j] = np.nan
             if sRHOHV[i, j] < 0:
