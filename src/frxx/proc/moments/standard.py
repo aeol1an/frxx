@@ -11,7 +11,7 @@ import numpy as np
 def calculateDualPolPPIACF(
 		iq: IQ, 
 		azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0, gstep: int = 1,
-		SNRthresholddB: Tuple[float,float] | None = None, 
+		SNRthresholddB: Tuple[float,float] = (-np.inf, -np.inf), 
 		subtractNoiseEstimate: bool = True, flipVel: bool = False
 ) -> moments:
 	if not ("iq" in iq.ds):
@@ -60,15 +60,8 @@ def calculateDualPolPPIACF(
 	Sh = np.abs(Rh[:,:,0]) - (N0hLin if subtractNoiseEstimate else 0)
 	Sv = np.abs(Rv) - (N0vLin if subtractNoiseEstimate else 0)
 
-	if SNRthresholddB is None:
-		Sh[Sh <= 0] = np.nan
-		Sv[Sh <= 0] = np.nan
-	else:
-		SNRHthreshLin = 10**(0.1 * SNRthresholddB[0])
-		SNRVthreshLin = 10**(0.1 * SNRthresholddB[1])
-		Sh[(Sh / N0hLin) <= SNRHthreshLin] = np.nan
-		Sv[(Sv / N0vLin) <= SNRVthreshLin] = np.nan
-
+	Sh[Sh <= 0] = np.nan
+	Sv[Sh <= 0] = np.nan
 
 	DBZ = 10*np.log10(Sh*(rkm**2)) + zcalh
 
@@ -110,8 +103,15 @@ def calculateDualPolPPIACF(
 	m.setPrtSeconds(iq.prt[middlePulses])
 	m.setWavelengthMeters(iq.wavelength[middlePulses])
 	m.setPol(2)
-	m.setSNRThreshold([-np.inf, -np.inf] if SNRthresholddB is None else SNRthresholddB)
+	m.setSNRThreshold(SNRthresholddB)
 	m.setPulseBoundaries(pulseBoundaries)
+
+	mask =  (SNRH > SNRthresholddB[0]) & \
+			(SNRV > SNRthresholddB[1]) & \
+			~np.isnan(Sh) & \
+			~np.isnan(Sv)
+	
+	m.setMask(mask, "True if SNR below threshold or raw signal below 0.")
 
 	encoding = {
 		"dtype": "int16",

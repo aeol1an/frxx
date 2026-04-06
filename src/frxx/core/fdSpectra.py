@@ -13,7 +13,8 @@ class spectra(frxxData):
 		self.nonDataVars += [
 			   "ray_start_end", 
 			   "pulse_boundaries",
-			   "pol"
+			   "pol",
+			   "noise",
 			   "SNR_threshold",
 			   "mask",
 			   "velocity",
@@ -23,6 +24,7 @@ class spectra(frxxData):
 		self.requiredBools["ray_start_end"] = False
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["pol"] = False
+		self.requiredBools["noise"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
 
@@ -81,6 +83,26 @@ class spectra(frxxData):
 
 		self.requiredBools["pol"] = True
 
+	def setNoisedB(self, n0_dB: Union[NDArray[np.floating], Sequence[float]]):
+		if not self.requiredBools["pol"]:
+			raise RuntimeError("Number of polarizations not set yet.")
+		if len(n0_dB) != len(self.ds["pol"]):
+			raise RuntimeError("Noise array length should equal number of polarizations.")
+		
+		self.ds["noise"] = xr.DataArray(
+			data = np.array(n0_dB),
+			dims = ["pol"],
+			attrs = {
+				"units": "dB",
+				"long_name": "Noise_estimate_from_transmitter",
+			}
+		)
+		self.ds["noise"].encoding = {
+			"dtype": "float64",
+			"_FillValue": _FILL_VALUES["float64"]
+		}
+
+		self.requiredBools["noise"] = True
 
 	def setSNRThreshold(self, snrt_db: Union[NDArray[np.floating], Sequence[float]]):
 		if not self.requiredBools["pol"]:
@@ -247,6 +269,23 @@ class spectra(frxxData):
 		vlens = self.ds["vlen"].data	
 		data = [self.ds["mask"].data[i, :, :vlens[i]] for i in range(len(vlens))]
 		return data
+
+	@property
+	def N0(self):
+		if (len(self.ds["pol"]) == 2):
+			return self.ds["noise"].values
+		else:
+			return self.ds["noise"].values[0]
+	
+	@property
+	def N0H(self):
+		return self.ds["noise"].values[0]
+	
+	@property
+	def N0V(self):
+		if (len(self.ds["pol"]) != 2):
+			raise ValueError("Vertical channel iq only availible for dual-pol data.")
+		return self.ds["noise"].values[1]
 
 	def _getattr__(self, name):
 		if name in self.nonDataVars:

@@ -14,8 +14,8 @@ from numba import njit, prange
 import warnings
 
 @njit(
-	'Tuple((List(float64[:,:]), List(float64[:,:]), List(complex128[:,:]), '
-	'List(float64[:,:]), List(float64[:,:]), List(float64[:,:]), List(float64[:,:])))'
+	'Tuple((List(float64[:,:]), List(float64[:,:]), '
+	'List(float64[:,:]), List(float64[:,:])))'
 	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, optional(int64), '
 	'float64, float64, int64, int64, optional(int64), optional(int64), optional(int64))',
 	parallel=True, cache=True
@@ -25,7 +25,6 @@ def _computeBootstrapDPSD(
 	pulseBoundaries, azIncreasing, 
 	window, 
 	swathPulses, 
-	noiseh, noisev, 
 	nBootstraps, 
 	K = 1, KOffset = None, 
 	avgStrat = None,
@@ -49,7 +48,7 @@ def _computeBootstrapDPSD(
 	else:
 		raise ValueError("Bad window selection.")
 
-	result = ([],[],[],[],[],[],[])
+	result = ([],[],[],[])
 	for az in prange(naz):
 		iqhs, _, nSAZ = algs.res.subsetIQnumba(
 			iqh, 
@@ -66,7 +65,7 @@ def _computeBootstrapDPSD(
 			avgStrat
 		)
 		wValues = w(nSAZ)
-		R = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, noiseh, noisev, nBootstraps, K, NFT)
+		R = algs.bootstrapDPSD.computeRay(iqhs, iqvs, wValues, nBootstraps, K, NFT)
 		for i in range(len(R)):
 			result[i].append(R[i])
 
@@ -75,7 +74,7 @@ def _computeBootstrapDPSD(
 def calculatePPIDPSD(
 	iq: IQ, m: moments | None = None, 
 	azSpacingDeg: float | None = None, beamOverlapDeg: float | None = None,
-	SNRthresholddB: Tuple[float,float] | None = None, 
+	SNRthresholddB: Tuple[float,float] = (-np.inf, -np.inf), 
 	nBootstraps: int = 50, 
 	swathPulses: int | None = None, NFT: int | None = None, window: str = "blackman",
 	K: int = 1, KOffset: str | None = None, avgStrat: str | None = None
@@ -151,9 +150,9 @@ def calculatePPIDPSD(
 
 	azIncreasing = np.mean(np.sign(np.diff(az)))
 	KOffset, avgStrat = algs.res._subsetIQStrToInt(KOffset, avgStrat)
-	PSDH, PSDV, COV, sSNRH, sSNRV, sZDR, sRHOHV = _computeBootstrapDPSD(
+	PSDH, PSDV, sZDR, sRHOHV = _computeBootstrapDPSD(
 		iqh, iqv, pulseBoundaries, azIncreasing, w, swathPulses,
-		10**(0.1*iq.N0H), 10**(0.1*iq.N0V), nBootstraps,
+		nBootstraps,
 		K, KOffset,
 		avgStrat, NFT
 	)
@@ -177,7 +176,55 @@ def calculatePPIDPSD(
 	s.setPrtSeconds(prt)
 	s.setWavelengthMeters(wavelength)
 	s.setPol(2)
-	s.setSNRThreshold([-np.inf, -np.inf] if SNRthresholddB is None else SNRthresholddB)
+	s.setSNRThreshold(SNRthresholddB)
 	s.setPulseBoundaries(pulseBoundaries)
+
+	mask = []
+	for i in range(len(PSDH)):
+		imask = ((PSDH[i]-iq.N0H) > SNRthresholddB[0]) & \
+				((PSDV[i]-iq.N0H) > SNRthresholddB[1]) & \
+				~np.isnan(sZDR[i])
+		mask.append(imask)
+	s.setMask(mask, "True if SNR below threshold or linear ZDR below 0 (due to correction).")
+
+	encoding = {
+		"dtype": "int16",
+		"_FillValue": _FILL_VALUES["int16"],
+		"scale_factor": 0.01,
+		"add_offset": 0.0
+	}
+
+	encoding = {
+		"dtype": "int16",
+		"_FillValue": _FILL_VALUES["int16"],
+		"scale_factor": 0.01,
+		"add_offset": 0.0
+	}
+
+	s.addDataField('PSDH', PSDH, encoding=encoding,
+		attrs={
+			"long_name": "horizontal_power_spectral_density",
+			"units": "dB",
+		}
+	)
+	s.addDataField('PSDV', PSDV, encoding=encoding,
+		attrs={
+			"long_name": "vertical_power_spectral_density",
+			"units": "dB",
+			"grid_mapping": "grid_mapping",
+		}
+	)
+	s.addDataField('sZDR', sZDR, encoding=encoding,
+		attrs={
+			"long_name": "spectral_differential_reflectivity",
+			"units": "dB",
+		}
+	)
+	s.addDataField('sRHOHV', sRHOHV, encoding=encoding,
+		attrs={
+			"long_name": "spectral_correlation_coefficient",
+			"units": "unitless",
+		}
+	)
 
 	return s

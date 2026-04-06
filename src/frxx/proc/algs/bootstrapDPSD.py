@@ -119,13 +119,18 @@ def _computeMultipleSpectra(
         
     return SH, SV, SX
 
+# @njit(
+#     'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:]))'
+#     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, optional(int64))',
+#     cache=True
+# )
 @njit(
-    'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:]))'
-    '(complex64[:,:], complex64[:,:], float64[:], float64, float64, int64, int64, optional(int64))',
+    'Tuple((float64[:,:], float64[:,:], float64[:,:], float64[:,:]))'
+    '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, optional(int64))',
     cache=True
 )
 def computeRay(
-    iqh: NDArray, iqv: NDArray, window, noiseh, noisev, nBootstraps, K = 1, NFT = None
+    iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = None
 ):
     r = 0.5 - np.sqrt(np.mean(np.power(window, 2)))*0.5
 
@@ -169,10 +174,7 @@ def computeRay(
     
     PSDH = tsh
     PSDV = tsv
-    COV = tsx
-
-    sSNRH = tsh/noiseh
-    sSNRV = tsv/noisev
+    #COV = tsx
 
     trsquared = np.power(tr, 2)
 
@@ -186,5 +188,6 @@ def computeRay(
             if sRHOHV[i, j] < 0:
                 sRHOHV[i, j] = 0
 
-    return PSDH, PSDV, COV, sSNRH, sSNRV, sZDR, sRHOHV
+    #return 10*np.log10(PSDH), 10*np.log10(PSDV), COV, 10*np.log10(sZDR), sRHOHV
+    return 10*np.log10(PSDH), 10*np.log10(PSDV), 10*np.log10(sZDR), sRHOHV
 
