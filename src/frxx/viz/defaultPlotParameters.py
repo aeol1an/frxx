@@ -84,7 +84,7 @@ spectra = {
         'units': ''
     },
     'DCAHREF': {
-        'title': f'Power Spectra Filtered by [A$_{{rain}}$]$^8$ (dB)',
+        'title': lambda filterStrength: f'Power Spectra Filtered by [A$_{{rain}}$]$^{filterStrength}$ (dB)',
         'shortTitle': 'sS$_{Hf}$',
         'ranges': (0, 10, 5),
         'cmap': 'Wistia',

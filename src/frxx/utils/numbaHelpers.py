@@ -9,40 +9,60 @@ def unwrap_i64(opt, default):
 
 @njit(
     [
-        'float32[:](float32[:,:], boolean[:,:])', 
         'float32[:](float32[:,:], boolean[:,:])',
-
-        'float64[:](float64[:,:], boolean[:,:])', 
-        'float64[:](float64[:,:], boolean[:,:])'
-    ], 
-    inline='always', cache=True
+        'float64[:](float64[:,:], boolean[:,:])',
+    ],
+    cache=True
 )
 def get_masked_float2d(arr, mask):
-    a = arr.ravel()
-    m = mask.ravel()
-    return a[m]
+    n = 0
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            if mask[i, j]:
+                n += 1
+    out = np.empty(n, dtype=arr.dtype)
+    idx = 0
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            if mask[i, j]:
+                out[idx] = arr[i, j]
+                idx += 1
+    return out
+
+@njit(
+    [
+        'void(float32[:,:], boolean[:,:], float32)',
+        'void(float64[:,:], boolean[:,:], float64)',
+    ],
+    cache=True
+)
+def set_masked_float2d_scalar(arr, mask, val):
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            if mask[i, j]:
+                arr[i, j] = val
 
 @njit(
     [
         'void(float32[:,:], boolean[:,:], float32[:])',
-        'void(float32[:,:], boolean[:,:], float32)',
-
-        'void(float64[:,:], boolean[:,:], float64[:])', 
-        'void(float64[:,:], boolean[:,:], float64)'
-    ], 
-    inline='always', cache=True
+        'void(float64[:,:], boolean[:,:], float64[:])',
+    ],
+    cache=True
 )
-def set_masked_float2d(arr, mask, val):
-    a = arr.ravel()
-    m = mask.ravel()
-    a[m] = val
+def set_masked_float2d_array(arr, mask, val):
+    idx = 0
+    for i in range(arr.shape[0]):
+        for j in range(arr.shape[1]):
+            if mask[i, j]:
+                arr[i, j] = val[idx]
+                idx += 1
 
 @njit(
     [
         'int64(float32[:])',
         'int64(float64[:])'
     ], 
-    inline='always', cache=True
+    cache=True
 )
 def nanargmax(arr):
     idx, found = 0, False
@@ -58,7 +78,7 @@ def nanargmax(arr):
         'int64(float32[:])',
         'int64(float64[:])'
     ],
-    inline='always', cache=True
+    cache=True
 )
 def nanargmin(arr):
     idx, found = 0, False

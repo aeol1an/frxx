@@ -8,6 +8,33 @@ from typing import Tuple
 
 import numpy as np
 
+from numba import njit, prange
+
+@njit(
+	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
+	'(complex64[:,:], complex64[:,:], int64[:,:], int32[:])', 
+	parallel=True, cache=True
+)
+def _processRays(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
+	#nRange, nBigTime, nLags
+	nRange = iqh.shape[0]
+	nBigTime = pulseBoundaries.shape[0]
+	nLags = lags.shape[0]
+
+	RH = np.empty((nBigTime, nRange, nLags), dtype=np.complex128)
+	RV = np.empty((nBigTime, nRange), dtype=np.complex128)
+	RX = np.empty((nBigTime, nRange), dtype=np.complex128)
+
+	for t in prange(nBigTime):
+		iqhs = iqh[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
+		iqvs = iqv[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
+		RV[t,:] = algs.ACF.computeRay_M(iqvs, iqvs, 0)
+		RX[t,:] = algs.ACF.computeRay_M(iqhs, iqvs, 0)
+		for l in range(nLags):
+			RH[t,:,l] = algs.ACF.computeRay_M(iqhs, iqhs, lags[l])
+
+	return RH, RV, RX
+
 def calculateDualPolPPIACF(
 		iq: IQ, 
 		azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0, gstep: int = 1,
@@ -49,7 +76,7 @@ def calculateDualPolPPIACF(
 	mEl = el[middlePulses]
 	mTime = time[middlePulses]
 
-	R = algs.ACF.processRays(iqh, iqv, pulseBoundaries, np.array([0, 1], dtype=np.int32))
+	R = _processRays(iqh, iqv, pulseBoundaries, np.array([0, 1], dtype=np.int32))
 
 	Rh, Rv, Rx = tuple(algs.res.averageAlongRange(r, gstep) for r in R)
 

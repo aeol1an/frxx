@@ -143,7 +143,7 @@ def _computeMultipleSpectra(
     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, int64)',
     cache=True
 )
-def computeRay(
+def processRay_S(
     iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = 1
 ) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     r = 0.5 - np.sqrt(np.mean(np.power(window, 2)))*0.5

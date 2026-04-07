@@ -4,7 +4,10 @@ from typing import Tuple
 from numpy.typing import NDArray
 
 from numba import njit, prange
-from ...utils.numbaHelpers import get_masked_float2d, set_masked_float2d, nanargmax, nanargmin
+from ...utils.numbaHelpers import \
+    get_masked_float2d, \
+    set_masked_float2d_scalar, set_masked_float2d_array, \
+    nanargmax
 from ...utils.freqResolution import velocityAxis
 
 @njit(
@@ -12,7 +15,7 @@ from ...utils.freqResolution import velocityAxis
         'float32[:,:](float32[:,:], int64)',
         'float64[:,:](float64[:,:], int64)'
     ],
-    cache=True, parallel=True
+    parallel=True
 )
 def calcVariance(field: NDArray, pts: int = 9):
     nr, nv = field.shape
@@ -30,7 +33,7 @@ def calcVariance(field: NDArray, pts: int = 9):
     return fieldResult
 
 _classIDX = ['rain', 'debris']
-_fieldIDX = ['sZDR', 'sRHOHV', 'sZDRvar', 'sRHOHVvar']
+_fieldIDX = ['sZDR', 'sRHOHV', 'sZDRv', 'sRHOHVv']
 _sideIDX = ['left', 'full', 'right']
 _membershipThresholds = {
     'rain' : {
@@ -63,10 +66,12 @@ _numbaMembershipThresholds = (
 
 @njit(
     [
+        'float32[:](float32[:], float32, float32, int64)',
         'float32[:,:](float32[:,:], float32, float32, int64)',
+        'float64[:](float64[:], float64, float64, int64)',
         'float64[:,:](float64[:,:], float64, float64, int64)'
     ],
-    inline='always', cache=True
+    cache=True
 )
 def _membershipFnLine(x, x1, x2, sign):
     t = x.dtype
@@ -77,33 +82,32 @@ def _membershipFnLine(x, x1, x2, sign):
     [
         'float32[:,:](float32[:,:], int64, int64)',
         'float64[:,:](float64[:,:], int64, int64)'
-    ]
-    , cache=True, inline='always'
+    ], cache=True,
 )
 def _membership(x, scattererClass: int, field: int):
     side, thresholds = _numbaMembershipThresholds[scattererClass][field]
-    ret=np.empty(x.shape, dtype=x.dtype)
+    ret = np.full(x.shape, np.nan, dtype=x.dtype)
     if side == 1:
         X1, X2, X3, X4 = thresholds
-        set_masked_float2d(ret, x < X1, 0.0)
+        set_masked_float2d_scalar(ret, x < X1, 0.0)
         m1 = (x >= X1) & (x < X2)
         m2 = (x >= X3) & (x < X4)
-        set_masked_float2d(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X1, X2, 1))
-        set_masked_float2d(ret, (x >= X2) & (x < X3), 1.0)
-        set_masked_float2d(ret, m2, _membershipFnLine(get_masked_float2d(x, m2), X3, X4, -1))
-        set_masked_float2d(ret, x >= X4, 0.0)
+        set_masked_float2d_array(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X1, X2, 1))
+        set_masked_float2d_scalar(ret, (x >= X2) & (x < X3), 1.0)
+        set_masked_float2d_array(ret, m2, _membershipFnLine(get_masked_float2d(x, m2), X3, X4, -1))
+        set_masked_float2d_scalar(ret, x >= X4, 0.0)
     elif side == 0:
         X3, X4, _, _ = thresholds
-        set_masked_float2d(ret, x < X3, 1.0)
+        set_masked_float2d_scalar(ret, x < X3, 1.0)
         m1 = (x >= X3) & (x < X4)
-        set_masked_float2d(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X3, X4, -1))
-        set_masked_float2d(ret, x >= X4, 0.0)
+        set_masked_float2d_array(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X3, X4, -1))
+        set_masked_float2d_scalar(ret, x >= X4, 0.0)
     else:
         X1, X2, _, _ = thresholds
-        set_masked_float2d(ret, x < X1, 0.0)
+        set_masked_float2d_scalar(ret, x < X1, 0.0)
         m1 = (x >= X1) & (x < X2)
-        set_masked_float2d(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X1, X2, 1))
-        set_masked_float2d(ret, x >= X2, 1.0)
+        set_masked_float2d_array(ret, m1, _membershipFnLine(get_masked_float2d(x, m1), X1, X2, 1))
+        set_masked_float2d_scalar(ret, x >= X2, 1.0)
     return ret
         
 @njit(
@@ -116,21 +120,47 @@ def _membership(x, scattererClass: int, field: int):
     ],
     cache=True
 )
-def processRay(sZDR, sRHOHV, sZDRvar, sRHOHVvar, PSDH, filterStrength=8):
+def calcAggregation(sZDR, sRHOHV, sZDRv, sRHOHVv, PSDH, filterStrength: float = 8):
     t = sZDR.dtype
-    Arain = \
-        _membership(sZDR, 0, 0) * t.type(0.25) + \
-        _membership(sRHOHV, 0, 1) * t.type(0.25) + \
-        _membership(sZDRvar, 0, 2) * t.type(0.25) + \
-        _membership(sRHOHVvar, 0, 3) * t.type(0.25)
+    Arain = np.clip(
+        _membership(sZDR, 0, 0) * t.type(0.25) + 
+        _membership(sRHOHV, 0, 1) * t.type(0.25) + 
+        _membership(sZDRv, 0, 2) * t.type(0.25) + 
+        _membership(sRHOHVv, 0, 3) * t.type(0.25),
+        0, 1
+    )
     
-    Adebris = \
-        _membership(sZDR, 1, 0) * t.type(0.10)+ \
-        _membership(sRHOHV, 1, 1) * t.type(0.25)+ \
-        _membership(sZDRvar, 1, 2) * t.type(0.40)+ \
-        _membership(sRHOHVvar, 1, 3) * t.type(0.25)
-        
+    Adebris = np.clip(
+        _membership(sZDR, 1, 0) * t.type(0.10)+ 
+        _membership(sRHOHV, 1, 1) * t.type(0.25)+ 
+        _membership(sZDRv, 1, 2) * t.type(0.40)+ 
+        _membership(sRHOHVv, 1, 3) * t.type(0.25),
+        0, 1
+    )
+    
     return Arain, Arain/(Arain+Adebris), (10**(PSDH/10))*(Arain**filterStrength)
+
+@njit(
+	[
+		'Tuple((float32[:,:], float32[:,:], '
+		'float32[:,:], float32[:,:], float32[:,:]))'
+		'(float32[:,:], float32[:,:], float32[:,:], int64, float32)',
+
+		'Tuple((float64[:,:], float64[:,:], '
+		'float64[:,:], float64[:,:], float64[:,:]))'
+		'(float64[:,:], float64[:,:], float64[:,:], int64, float64)',
+	],
+	cache=True
+)
+def processRay_S(
+	PSDH, 
+	sZDR, sRHOHV,
+	pts: int = 9, filterStrength: float = 8
+) -> Tuple[NDArray, NDArray, NDArray, NDArray, NDArray]:
+    sZDRv = calcVariance(sZDR, pts)
+    sRHOHVv = calcVariance(sRHOHV, pts)
+    Arain, Anrain, PSDHF = calcAggregation(sZDR, sRHOHV, sZDRv, sRHOHVv, PSDH, filterStrength)
+    return sZDRv, sRHOHVv, Arain, Anrain, PSDHF
 
 @njit(
     [
@@ -139,25 +169,25 @@ def processRay(sZDR, sRHOHV, sZDRvar, sRHOHVvar, PSDH, filterStrength=8):
     ],
     cache=True, parallel=True
 )
-def calcVelocity(PSDH_f, vACF, va, flipVel):
-    t = PSDH_f.dtype
-    nr, nv = PSDH_f.shape
+def processRay_M(PSDHF, vACF, va, flipVel):
+    t = PSDHF.dtype
+    nr, nv = PSDHF.shape
 
-    vAxis = velocityAxis(nv, va, flipVel)
+    vAxis = velocityAxis(nv, va, flipVel, 0, 0)
 
     vDCA = np.empty((nr,), dtype=t)
     correction = np.empty((nr,), dtype=t)
     for r in prange(nr):
         #find vDCA
-        if np.isnan(PSDH_f[r]).all():
+        if np.isnan(PSDHF[r]).all():
             vDCA[r] = np.nan
             correction[r] = 0.0
             continue
-        P = np.nansum(PSDH_f[r])
-        km = nanargmax(PSDH_f[r])
+        P = np.nansum(PSDHF[r])
+        km = nanargmax(PSDHF[r])
         vMax = vAxis[km]
         delV = vAxis - vMax
-        vDCA[r] = vMax + (1/P)*np.nansum(delV*PSDH_f[r])
+        vDCA[r] = vMax + (1/P)*np.nansum(delV*PSDHF[r])
 
         #calculate correction
         if np.isnan(vACF[r]):
@@ -173,17 +203,17 @@ def calcVelocity(PSDH_f, vACF, va, flipVel):
 
         lower = iACF if iACF < iDCA else iDCA
         higher = iACF if iACF > iDCA else iDCA
-        betweenMean = np.nanmean(PSDH_f[r][lower:higher+1])
+        betweenMean = np.nanmean(PSDHF[r][lower:higher+1])
 
         outsideSum = 0.0
         outsideCount = 0
         for i in range(higher, nv):
-            v = PSDH_f[r][i]
+            v = PSDHF[r][i]
             if not np.isnan(v):
                 outsideSum += v
                 outsideCount += 1
         for i in range(0, lower + 1):
-            v = PSDH_f[r][i]
+            v = PSDHF[r][i]
             if not np.isnan(v):
                 outsideSum += v
                 outsideCount += 1

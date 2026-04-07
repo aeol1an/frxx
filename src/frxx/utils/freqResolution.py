@@ -17,7 +17,7 @@ def velResolutionTonPulses(delta_v, prf = 4000, wavelength = 0.0308):
         'float32[:](int64, float32, boolean, int64, int64)',
         'float64[:](int64, float64, boolean, int64, int64)'
     ],
-    cache=True, inline='always'
+    cache=True
 )
 def velocityAxis(NFT: int, va: np.floating, flipVel: bool, leftUnfolds = 0, rightUnfolds = 0):
     t = np.array([va]).dtype

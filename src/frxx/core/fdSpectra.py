@@ -4,7 +4,7 @@ import xarray as xr
 from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
-from numba import njit, prange
+from numba.typed import List as ListType
 
 from .frxxData import _FILL_VALUES, frxxData
 
@@ -90,7 +90,7 @@ class spectra(frxxData):
 		self.requiredBools["SNR_threshold"] = True
 
 	def setMask(self, mask: List[NDArray[np.bool_]], comment: str):
-		if not isinstance(mask, List):
+		if not (isinstance(mask, List) or isinstance(mask, ListType)):
 			raise TypeError("Spectra can be jagged so the first dim should be a python list. " \
 							"This functon handles filling with NaNs.")
 		nRays = len(self.ds["time"])
@@ -174,7 +174,7 @@ class spectra(frxxData):
 	def addDataField(self, name: str, data: List[NDArray], attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all spectra object variables.")
-		if not isinstance(data, List):
+		if not (isinstance(data, List) or isinstance(data, ListType)):
 			raise TypeError("Spectra can be jagged so the first dim should be a python list. " \
 							"This functon handles filling with NaNs.")
 		nRays = len(self.ds["time"])
@@ -240,10 +240,12 @@ class spectra(frxxData):
 	def mask(self) -> List[NDArray[np.bool_]]:
 		if not self.requiredBools["mask"]:
 			raise AttributeError("Mask has not been set.")
-		data = []
+
 		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
-		bnd = self.ds["spectra_boundaries"].data	
-		data = [self.ds["mask"].data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
+		bnd = self.ds["spectra_boundaries"].data
+		data = ListType()
+		for i in range(len(bnd)):
+			data.append(self.ds["mask"].data[:, bnd[i][0]:bnd[i][1]+1])
 		return data
 
 	def __getattr__(self, name):
@@ -257,12 +259,13 @@ class spectra(frxxData):
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
 		
-		data = []
 		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
 		bnd = self.ds["spectra_boundaries"].data	
 		if masked:
 			array = self.ds[name].where(self.ds["mask"])
 		else:
 			array = self.ds[name]
-		data = [array.data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
+		data = ListType()
+		for i in range(len(bnd)):
+			data.append(array.data[:, bnd[i][0]:bnd[i][1]+1])
 		return data
