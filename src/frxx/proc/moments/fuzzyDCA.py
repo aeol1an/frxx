@@ -18,7 +18,7 @@ from numba import njit, prange
 		'Tuple((float64[:,:], float64[:,:]))'
 		'(ListType(float64[:,:]), ListType(float64[:,:]), float64[:,:], float64, boolean)',
 	],
-	cache=True, parallel=True
+	cache=True, parallel=True, nogil=True
 )
 def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 	naz = len(PSDHF)

@@ -20,7 +20,7 @@ import warnings
 	'ListType(float64[:,::1]), ListType(float64[:,::1])))'
 	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, int64, '
 	'int64, int64, int64, int64, int64)',
-	parallel=True, cache=True
+	parallel=True, cache=True, nogil=True
 )
 def _computeBootstrapDPSD(
 	iqh, iqv, 

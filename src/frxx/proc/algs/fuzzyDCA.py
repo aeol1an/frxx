@@ -15,7 +15,7 @@ from ...utils.freqResolution import velocityAxis
 		'float32[:,:](float32[:,:], int64)',
 		'float64[:,:](float64[:,:], int64)'
 	],
-	parallel=True
+	parallel=True, nogil=True
 )
 def calcVariance(field: NDArray, pts: int = 9):
 	nr, nv = field.shape
@@ -71,7 +71,7 @@ _numbaMembershipThresholds = (
 		'float64[:](float64[:], float64, float64, int64)',
 		'float64[:,:](float64[:,:], float64, float64, int64)'
 	],
-	cache=True
+	cache=True, nogil=True
 )
 def _membershipFnLine(x, x1, x2, sign):
 	t = x.dtype
@@ -82,7 +82,8 @@ def _membershipFnLine(x, x1, x2, sign):
 	[
 		'float32[:,:](float32[:,:], int64, int64)',
 		'float64[:,:](float64[:,:], int64, int64)'
-	], cache=True,
+	],
+	cache=True, nogil=True
 )
 def _membership(x, scattererClass: int, field: int):
 	side, thresholds = _numbaMembershipThresholds[scattererClass][field]
@@ -118,7 +119,7 @@ def _membership(x, scattererClass: int, field: int):
 		'Tuple((float64[:,:], float64[:,:], float64[:,:]))'
 		'(float64[:,:], float64[:,:], float64[:,:], float64[:,:], float64[:,:], int64)',        
 	],
-	cache=True
+	cache=True, nogil=True
 )
 def calcAggregation(sZDR, sRHOHV, sZDRv, sRHOHVv, PSDH, filterStrength: float = 8):
 	t = sZDR.dtype
@@ -150,7 +151,7 @@ def calcAggregation(sZDR, sRHOHV, sZDRv, sRHOHVv, PSDH, filterStrength: float = 
 		'float64[:,:], float64[:,:], float64[:,:]))'
 		'(float64[:,:], float64[:,:], float64[:,:], int64, float64)',
 	],
-	cache=True
+	cache=True, nogil=True
 )
 def processRay_S(
 	PSDH, 
@@ -167,7 +168,7 @@ def processRay_S(
 		'Tuple((float32[:], float32[:]))(float32[:,:], float32[:,:], float32[:], float32, boolean)',
 		'Tuple((float64[:], float64[:]))(float64[:,:], float64[:,:], float64[:], float64, boolean)'
 	],
-	cache=True, parallel=True
+	cache=True, parallel=True, nogil=True
 )
 def processRay_M(PSDHF, PSDH, vACF, va, flipVel):
 	t = PSDHF.dtype

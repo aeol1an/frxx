@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit, prange
 
-@njit('complex128[:](complex64[:,:], complex64[:,:], int32)', parallel=True, cache=True)
+@njit('complex128[:](complex64[:,:], complex64[:,:], int32)', nogil=True, parallel=True, cache=True)
 def computeRay_M(X1, X2, lag=0):
 	if X1.shape != X2.shape:
 		raise ValueError("Two array shapes not equal.")

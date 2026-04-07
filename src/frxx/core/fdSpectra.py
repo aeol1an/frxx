@@ -4,7 +4,10 @@ import xarray as xr
 from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
+import dask.array as da
+
 from numba.typed import List as ListType
+
 
 from .frxxData import _FILL_VALUES, frxxData
 
@@ -128,8 +131,8 @@ class spectra(frxxData):
 			"units": "integer spectral component indices concatenated along time axis."
 		}
 		self.ds["velocity"].encoding = {
-			"dtype": "int32",
-			"_FillValue": _FILL_VALUES["int64"]
+			"dtype": "int64",
+			"_FillValue": _FILL_VALUES["int64"],
 		}
 		self.ds["vlens"] = self._constructDataArray(
 			data = lens,
@@ -150,7 +153,7 @@ class spectra(frxxData):
 			},
 			encoding = {
 				"dtype": "int64",
-				"_FillValue": _FILL_VALUES["int32"]
+				"_FillValue": _FILL_VALUES["int64"]
 			}
 		)
 		
@@ -161,13 +164,15 @@ class spectra(frxxData):
 			dims = ["range", "velocity"],
 			encoding = {
 				"dtype": "int8",
-				"_FillValue": _FILL_VALUES["int8"]
+				"_FillValue": _FILL_VALUES["int8"],
+				"chunksizes": (len(self.ds["range"]), int(np.median(self.ds["vlens"].data))),
+				"zlib": True,
+				"complevel": 4
 			},
 			attrs ={
 				"comment": "Boolean data mask. " + comment
 			}
 		)
-		
 		self.requiredBools["mask"] = True
 
 
@@ -204,6 +209,9 @@ class spectra(frxxData):
 			attrs = attrs,
 			encoding = encoding
 		)
+		self.ds[name].encoding["chunksizes"] = (len(self.ds["range"]), int(np.median(self.ds["vlens"].data)))
+		self.ds[name].encoding["zlib"] = True
+		self.ds[name].encoding["complevel"] = 4
 		self._incDataCounts()
 
 	def constructFilename(self) -> str:

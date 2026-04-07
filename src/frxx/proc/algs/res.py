@@ -27,7 +27,7 @@ def averageAlongRange(data: NDArray, gstep: int) -> NDArray:
 	return result
 
 
-@njit('void(complex64[:,:], complex64[:,:], int32, int32, int32, int32, int64, int64)', parallel=True, cache=True)
+@njit('void(complex64[:,:], complex64[:,:], int32, int32, int32, int32, int64, int64)', parallel=True, cache=True, nogil=True
 def _rangeSubsetIQ(iq, result, K, Koffset, NR, startRange, fp, lp):
 	ng, _ = iq.shape
 	
@@ -38,7 +38,7 @@ def _rangeSubsetIQ(iq, result, K, Koffset, NR, startRange, fp, lp):
 		r_set_idx[r_set_idx > (ng-1)] = ng-1
 		result[iK,:] = iq[r_set_idx,fp:lp+1]
 
-@njit('void(complex64[:,:], complex64[:,:], int32, int32, int64[:], int64[:])', parallel=True, cache=True)
+@njit('void(complex64[:,:], complex64[:,:], int32, int32, int64[:], int64[:])', parallel=True, cache=True, nogil=True)
 def _azSubsetIQ(iq, result, NR, startRange, fps, lps):
 	naz = len(fps)
 	for r in prange(NR):
@@ -52,7 +52,7 @@ def _azSubsetIQ(iq, result, NR, startRange, fps, lps):
 	'Tuple((complex64[:,:], int64, int64))'
 	'(complex64[:,:,], int64, int64, boolean, int64[:,:], int64[:], '
 	'int64, int64, int64, int64)',
-	cache=True
+	cache=True, nogil=True
 )
 def subsetIQnumba(
 	iq: NDArray,

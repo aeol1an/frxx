@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 
-@njit('boolean(float64, float64, float64)', inline='always', cache=True)
+@njit('boolean(float64, float64, float64)', inline='always', cache=True, nogil=True)
 def inDegreeRange(val, low, high):
     if low < high:
         return val > low and val < high
@@ -11,7 +11,7 @@ def inDegreeRange(val, low, high):
 from numba import njit
 import numpy as np
 
-@njit('Tuple((int64[:,:], float32[:]))(float32[:], float32, float32)', cache=True)
+@njit('Tuple((int64[:,:], float32[:]))(float32[:], float32, float32)', cache=True, nogil=True)
 def findPulseBoundaries(angle, pixelWidthDeg, beamOverlapDeg):
     halfSwath = 0.5 * (pixelWidthDeg + 2 * beamOverlapDeg)
     nPulses = len(angle)

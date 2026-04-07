@@ -13,7 +13,7 @@ from numba import njit, prange
 @njit(
 	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
 	'(complex64[:,:], complex64[:,:], int64[:,:], int32[:])', 
-	parallel=True, cache=True
+	parallel=True, cache=True, nogil=True
 )
 def _processRays(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
 	#nRange, nBigTime, nLags

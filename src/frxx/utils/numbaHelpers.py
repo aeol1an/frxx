@@ -1,7 +1,7 @@
 import numpy as np
 from numba import njit
 
-@njit('int64(optional(int64), int64)', cache=True)
+@njit('int64(optional(int64), int64)', cache=True, nogil=True)
 def unwrap_i64(opt, default):
     if opt is not None:
         return opt
@@ -12,7 +12,7 @@ def unwrap_i64(opt, default):
         'float32[:](float32[:,:], boolean[:,:])',
         'float64[:](float64[:,:], boolean[:,:])',
     ],
-    cache=True
+    cache=True, nogil=True
 )
 def get_masked_float2d(arr, mask):
     n = 0
@@ -34,7 +34,7 @@ def get_masked_float2d(arr, mask):
         'void(float32[:,:], boolean[:,:], float32)',
         'void(float64[:,:], boolean[:,:], float64)',
     ],
-    cache=True
+    cache=True, nogil=True
 )
 def set_masked_float2d_scalar(arr, mask, val):
     for i in range(arr.shape[0]):
@@ -47,7 +47,7 @@ def set_masked_float2d_scalar(arr, mask, val):
         'void(float32[:,:], boolean[:,:], float32[:])',
         'void(float64[:,:], boolean[:,:], float64[:])',
     ],
-    cache=True
+    cache=True, nogil=True
 )
 def set_masked_float2d_array(arr, mask, val):
     idx = 0
@@ -62,7 +62,7 @@ def set_masked_float2d_array(arr, mask, val):
         'int64(float32[:])',
         'int64(float64[:])'
     ], 
-    cache=True
+    cache=True, nogil=True
 )
 def nanargmax(arr):
     idx, found = 0, False
@@ -78,7 +78,7 @@ def nanargmax(arr):
         'int64(float32[:])',
         'int64(float64[:])'
     ],
-    cache=True
+    cache=True, nogil=True
 )
 def nanargmin(arr):
     idx, found = 0, False

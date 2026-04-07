@@ -9,7 +9,7 @@ from ...utils.numbaHelpers import unwrap_i64
 @njit(
     'Tuple((float64[:], float64[:], complex128[:]))'
     '(complex64[:], complex64[:], float64[:], int64, int64, int64, float64)',
-    parallel=False, cache=True
+    parallel=False, cache=True, nogil=True
 )
 def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
     # Guard CX
@@ -112,7 +112,7 @@ def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
 @njit(
     'Tuple((float64[:,:], float64[:,:], complex128[:,:]))'
     '(complex64[:,:], complex64[:,:], float64[:], int64, int64, int64, int64, float64)',
-    parallel=True, cache=True
+    parallel=True, cache=True, nogil=True
 )
 def _computeMultipleSpectra(
     VH: np.ndarray, VV: np.ndarray, w: np.ndarray,
@@ -136,12 +136,12 @@ def _computeMultipleSpectra(
 # @njit(
 #     'Tuple((float64[:,:], float64[:,:], complex128[:,:], float64[:,:], float64[:,:]))'
 #     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, int64)',
-#     cache=True
+#     cache=True, nogil=True
 # )
 @njit(
     'Tuple((float64[:,:], float64[:,:], float64[:,:], float64[:,:]))'
     '(complex64[:,:], complex64[:,:], float64[:],  int64, int64, int64)',
-    cache=True
+    cache=True, nogil=True
 )
 def processRay_S(
     iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = 1

@@ -21,7 +21,7 @@ from numba.typed import List as TypedList
 		'ListType(float64[:,::1]), ListType(float64[:,::1]), ListType(float64[:,::1])))'
 		'(ListType(float64[:,:]), ListType(float64[:,:]), ListType(float64[:,:]), int64, float64)',
 	],
-	cache=True, parallel=True
+	cache=True, parallel=True, nogil=True
 )
 def _processRays(
 	PSDH, 
