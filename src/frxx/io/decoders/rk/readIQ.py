@@ -922,6 +922,7 @@ def readIQ(
     ret.setPulseWidthSeconds(pulseWidthArr)
     ret.setPrtSeconds(prtArr)
     ret.setWavelengthMeters(wavelengthArr)
+    ret.setPhaseDirection("reversed")
     ret.setSourceFile(rkc.filename)
 
     ret.setPol(2)

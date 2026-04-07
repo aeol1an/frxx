@@ -293,6 +293,7 @@ def calculatePPIDPSD(
 	s.setPulseWidthSeconds(pw)
 	s.setPrtSeconds(prt)
 	s.setWavelengthMeters(wavelength)
+	s.setPhaseDirection(iq.ds.attrs["phase_direction"])
 	s.setPol(2)
 	s.setNoisedB(iq.N0)
 	s.setSNRThreshold(SNRthresholddB)

@@ -155,9 +155,18 @@ class moments(frxxData):
 	def mask(self) -> NDArray:
 		return np.ascontiguousarray(self.ds["mask"].data).astype(bool)
 	
-	def _getattr__(self, name):
+	def __getattr__(self, name):
+		if name.startswith("m_"):
+			masked = True
+			name = name[2:]
+		else:
+			masked = False
 		if name in self.nonDataVars:
 			raise ValueError("Non data variables have their own attribute getters.")
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
-		return self.ds[name]
+		
+		if masked:
+			return np.where(self.mask, np.ascontiguousarray(self.ds[name].data), np.nan)
+		else:
+			return np.ascontiguousarray(self.ds[name].data)

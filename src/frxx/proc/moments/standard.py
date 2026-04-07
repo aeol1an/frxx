@@ -39,13 +39,13 @@ def calculateDualPolPPIACF(
 		iq: IQ, 
 		azSpacingDeg: float = 1.0, beamOverlapDeg: float = 0.0, gstep: int = 1,
 		SNRthresholddB: Tuple[float,float] = (-np.inf, -np.inf), 
-		subtractNoiseEstimate: bool = True, flipVel: bool = False
+		subtractNoiseEstimate: bool = True
 ) -> moments:
 	if not ("iq" in iq.ds):
 		raise ValueError("IQ data structure is not complete yet.")
 	if len(iq.ds["sweep"]) != 1:
 		raise ValueError("IQ data should have one sweep per Dataset.")
-	
+
 	va = iq.va[0]
 
 	iqh, iqv = (iq.iqh, iq.iqv)
@@ -92,7 +92,7 @@ def calculateDualPolPPIACF(
 
 	DBZ = 10*np.log10(Sh*(rkm**2)) + zcalh
 
-	if flipVel:
+	if iq.phaseReversed:
 		s = -1
 	else:
 		s = 1
@@ -129,6 +129,7 @@ def calculateDualPolPPIACF(
 	m.setPulseWidthSeconds(iq.pw[middlePulses])
 	m.setPrtSeconds(iq.prt[middlePulses])
 	m.setWavelengthMeters(iq.wavelength[middlePulses])
+	m.setPhaseDirection(iq.ds.attrs["phase_direction"])
 	m.setPol(2)
 	m.setNoisedB(iq.N0)
 	m.setSNRThreshold(SNRthresholddB)
@@ -148,7 +149,7 @@ def calculateDualPolPPIACF(
 		"add_offset": 0.0
 	}
 
-	m.addDataField('DBZ', DBZ, encoding=encoding,
+	m.addDataField('DBZ', DBZ.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "reflectivity",
 			"standard_name": "equivalent_reflectivity_factor",
@@ -156,7 +157,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('VEL', VEL, encoding=encoding,
+	m.addDataField('VEL', VEL.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "doppler_velocity",
 			"standard_name": "radial_velocity_of_scatterers_away_from_instrument",
@@ -164,7 +165,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('WIDTH', WIDTH, encoding=encoding,
+	m.addDataField('WIDTH', WIDTH.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "spectrum_width",
 			"standard_name": "doppler_spectrum_width",
@@ -172,7 +173,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('ZDR', ZDR, encoding=encoding,
+	m.addDataField('ZDR', ZDR.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "differential_reflectivity",
 			"standard_name": "log_differential_reflectivity_hv",
@@ -180,7 +181,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('PHIDP', PHIDP, encoding=encoding,
+	m.addDataField('PHIDP', PHIDP.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "differential_phase",
 			"standard_name": "differential_phase_hv",
@@ -188,7 +189,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('RHOHV', RHOHV, encoding=encoding,
+	m.addDataField('RHOHV', RHOHV.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "cross_correlation_ratio",
 			"standard_name": "cross_correlation_ratio_hv",
@@ -196,7 +197,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('SNRH', SNRH, encoding=encoding,
+	m.addDataField('SNRH', SNRH.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "horizontal_channel_signal_to_noise_ratio",
 			"standard_name": "signal_to_noise_ratio_h",
@@ -204,7 +205,7 @@ def calculateDualPolPPIACF(
 			"grid_mapping": "grid_mapping",
 		}
 	)
-	m.addDataField('SNRV', SNRV, encoding=encoding,
+	m.addDataField('SNRV', SNRV.astype(np.float32), encoding=encoding,
 		attrs={
 			"long_name": "vertical_channel_signal_to_noise_ratio",
 			"standard_name": "signal_to_noise_ratio_v",
