@@ -1,6 +1,7 @@
 import numpy as np
-from numba import njit, prange, types
+from numba import njit, prange
 
+from typing import Tuple
 from numpy.typing import NDArray
 
 from ...utils.numbaHelpers import unwrap_i64
@@ -144,7 +145,7 @@ def _computeMultipleSpectra(
 )
 def computeRay(
     iqh: NDArray, iqv: NDArray, window, nBootstraps, K = 1, NFT = 1
-):
+) -> Tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     r = 0.5 - np.sqrt(np.mean(np.power(window, 2)))*0.5
 
     NK = iqh.shape[0]

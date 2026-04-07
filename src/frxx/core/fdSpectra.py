@@ -96,6 +96,8 @@ class spectra(frxxData):
 		nRays = len(self.ds["time"])
 		if len(mask) != nRays:
 			raise ValueError("Number of rays passed does not equal length of time coordinate.")
+		if self.requiredBools["mask"]:
+			raise RuntimeError("Mask is already set! Use updateMask. (Notimplemented yet.)")
 		
 		lens = []
 		s = []
@@ -152,7 +154,6 @@ class spectra(frxxData):
 			}
 		)
 		
-
 		concatData = np.concatenate(mask, axis=1)
 
 		self.ds["mask"] = self._constructDataArray(
@@ -168,6 +169,7 @@ class spectra(frxxData):
 		)
 		
 		self.requiredBools["mask"] = True
+
 
 	def addDataField(self, name: str, data: List[NDArray], attrs, encoding):
 		if not all(self.requiredBools.values()):
@@ -197,7 +199,7 @@ class spectra(frxxData):
 		concatData = np.concatenate(data, axis=1)
 
 		self.ds[name] = self._constructDataArray(
-			data = concatData,
+			data = concatData.astype(np.float32),
 			dims = ["range", "velocity"],
 			attrs = attrs,
 			encoding = encoding
@@ -245,12 +247,22 @@ class spectra(frxxData):
 		return data
 
 	def __getattr__(self, name):
+		if name.startswith("m_"):
+			masked = True
+			name = name[2:]
+		else:
+			masked = False
 		if name in self.nonDataVars:
 			raise ValueError("Non data variables have their own attribute getters.")
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
+		
 		data = []
 		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
 		bnd = self.ds["spectra_boundaries"].data	
-		data = [self.ds[name].data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
+		if masked:
+			array = self.ds[name].where(self.ds["mask"])
+		else:
+			array = self.ds[name]
+		data = [array.data[:,bnd[i][0]:bnd[i][1]+1] for i in range(len(bnd))]
 		return data
