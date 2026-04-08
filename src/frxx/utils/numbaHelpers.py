@@ -1,6 +1,11 @@
 import numpy as np
 from numba import njit
 
+from typing import List
+from numpy.typing import NDArray
+
+from numba.typed import List as ListType
+
 @njit('int64(optional(int64), int64)', cache=True, nogil=True)
 def unwrap_i64(opt, default):
     if opt is not None:
@@ -88,3 +93,9 @@ def nanargmin(arr):
     if not found:
         raise ValueError("All-NaN slice encountered")
     return idx
+
+def toNumbaList(list: List[NDArray]):
+    ret: List = ListType() # type: ignore
+    for l in list:
+        ret.append(np.asarray(l))
+    return ret

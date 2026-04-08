@@ -8,7 +8,6 @@ import dask.array as da
 
 from numba.typed import List as ListType
 
-
 from .frxxData import _FILL_VALUES, frxxData
 
 class spectra(frxxData):
@@ -157,7 +156,7 @@ class spectra(frxxData):
 			}
 		)
 		
-		concatData = np.concatenate(mask, axis=1)
+		concatData = da.concatenate(mask, axis=1)
 
 		self.ds["mask"] = self._constructDataArray(
 			data = concatData,
@@ -201,7 +200,7 @@ class spectra(frxxData):
 		if not np.array_equal(lens, self.ds["vlens"].values):
 			raise ValueError("All data variables must have the same shape.")
 
-		concatData = np.concatenate(data, axis=1)
+		concatData = da.concatenate(data, axis=1)
 
 		self.ds[name] = self._constructDataArray(
 			data = concatData.astype(np.float32),
@@ -249,12 +248,16 @@ class spectra(frxxData):
 		if not self.requiredBools["mask"]:
 			raise AttributeError("Mask has not been set.")
 
-		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
+		self.ds["spectra_boundaries"].data = np.asarray(self.ds["spectra_boundaries"].data)
 		bnd = self.ds["spectra_boundaries"].data
-		data = ListType()
+		data = []
 		for i in range(len(bnd)):
 			data.append(self.ds["mask"].data[:, bnd[i][0]:bnd[i][1]+1])
 		return data
+
+	@property
+	def vlens(self) -> NDArray:
+		return np.ascontiguousarray(self.ds["vlens"].data).astype(np.int64)
 
 	def __getattr__(self, name):
 		if name.startswith("m_"):
@@ -267,13 +270,13 @@ class spectra(frxxData):
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
 		
-		self.ds["spectra_boundaries"] = self.ds["spectra_boundaries"].compute()
+		self.ds["spectra_boundaries"].data = np.asarray(self.ds["spectra_boundaries"].data)
 		bnd = self.ds["spectra_boundaries"].data	
 		if masked:
 			array = self.ds[name].where(self.ds["mask"])
 		else:
 			array = self.ds[name]
-		data = ListType()
+		data = []
 		for i in range(len(bnd)):
 			data.append(array.data[:, bnd[i][0]:bnd[i][1]+1])
 		return data

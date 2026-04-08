@@ -707,6 +707,11 @@ class frxxData(ABC):
 			return False
 		return True
 	
+	def load(self, vars: List[str] | None = None):
+		if vars is None:
+			self.ds.load()
+		self.ds.update(self.ds[vars].load())
+
 	@property
 	def vol(self) -> int:
 		return int(self.ds["volume_number"].values)

@@ -8,7 +8,11 @@ from numpy.typing import NDArray
 
 import numpy as np
 
+import dask as d
+import dask.array as da
+
 from numba import njit, prange
+from numba.typed import List as ListType
 
 @njit(
 	[
@@ -20,7 +24,7 @@ from numba import njit, prange
 	],
 	cache=True, parallel=True, nogil=True
 )
-def _processRays(PSDHF, PSDH, VEL, va, flipVel):
+def _processRaysP(PSDHF, PSDH, VEL, va, flipVel):
 	naz = len(PSDHF)
 
 	DCAVEL = np.empty(VEL.shape, dtype=VEL.dtype)
@@ -33,8 +37,37 @@ def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 
 	return DCAVEL, DCAVC
 
+def _processRays(PSDHF, PSDH, VEL, va, flipVel):
+	naz = len(PSDHF)
+	nr = len(VEL[0])
+
+	rays = [
+		d.delayed(DCA.processRay_M)( #type: ignore
+			PSDHF[az], PSDH[az], VEL[az], va, flipVel
+		)
+		for az in range(naz)
+	]
+
+	results = []
+	for product in range(2):
+		chunks = [
+			da.from_delayed(
+				rays[az][product].reshape(1, -1).astype(np.float32), #type: ignore
+				shape=(1, nr),
+				dtype=np.float32,
+			)
+			for az in range(naz)
+		]
+		results.append(np.concatenate(chunks, axis=0))
+
+	return tuple(results)
+
+
 def addFields(m: moments, s: spectra) -> None:
-	DCAVEL, DCAVC = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
+	s.load(["PSDH", "PSDHF"])
+
+	#DCAVEL, DCAVDIFF = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
+	DCAVEL, DCAVDIFF = _processRays(ListType(s.PSDHF), ListType(s.PSDH), m.m_VEL, m.va[0], m.phaseReversed)
 
 	encoding = {
 		"dtype": "int16",
@@ -52,10 +85,12 @@ def addFields(m: moments, s: spectra) -> None:
 		}
 	)
 	m.addDataField(
-		"DCAVC", DCAVC, encoding=encoding,
+		"DCAVDIFF", DCAVDIFF, encoding=encoding,
 		attrs={
 			"long_name": "DCA_doppler_velocity_correction",
 			"units": "m/s",
 			"grid_mapping": "grid_mapping",
 		}
 	)
+
+	m.load(["DCAVEL", "DCAVDIFF"])
