@@ -6,12 +6,12 @@ from . import pathUtils
 Bounds = Annotated[List[List[int]], "Each sub-list must have two strictly increasing elements, "
 									"and flattened list must be strictly increasing."]
 
-class sourceFile:
+class SourceFile:
 	def __init__(self, pathJson: dict, indices: Bounds | None = None, count: int | None = None):
 		if pathJson["file"] == "hardware":
 			self.isHardware = True
 			if count is None or count < 0:
-				raise ValueError("Hardware sourceFile must have a non-negative count.")
+				raise ValueError("Hardware SourceFile must have a non-negative count.")
 			self.count = count
 		else:
 			self.isHardware = False
@@ -25,27 +25,27 @@ class sourceFile:
 							 "and flattened list must be strictly increasing.")
 
 	@staticmethod
-	def makeFromJson(sourceFileJson: dict) -> "sourceFile":
+	def makeFromJson(sourceFileJson: dict) -> "SourceFile":
 		if sourceFileJson["file"] == "hardware":
-			return sourceFile({"file": "hardware"}, count=sourceFileJson.get("count", 0))
-		return sourceFile({"file": sourceFileJson["file"]}, sourceFileJson["idx"])
+			return SourceFile({"file": "hardware"}, count=sourceFileJson.get("count", 0))
+		return SourceFile({"file": sourceFileJson["file"]}, sourceFileJson["idx"])
 	
 	@staticmethod
 	def makeFromPathAndLength(filename: str | Path, nIdx: int | None):
 		if str(filename) == "hardware":
 			if nIdx is None:
-				raise ValueError("Hardware sourceFile must have a count (pass nIdx).")
+				raise ValueError("Hardware SourceFile must have a count (pass nIdx).")
 			sfJson = {
 				"file": "hardware",
 			}
-			return sourceFile(sfJson, count=nIdx)
+			return SourceFile(sfJson, count=nIdx)
 		else:
 			if nIdx is None:
 				raise ValueError("Filename must be hardware if nIdx is none.")
 			sfJson = {
 				"file": pathUtils.pathToJson(Path(filename).resolve()),
 			}
-			return sourceFile(sfJson, [[0, nIdx-1]])
+			return SourceFile(sfJson, [[0, nIdx-1]])
 		
 	def verifyIdx(self):
 		if self.isHardware:
@@ -91,11 +91,11 @@ class sourceFile:
 			"idx": self.indices
 		}
 
-	def concat(self, other: "sourceFile"):
+	def concat(self, other: "SourceFile"):
 		if self.isHardware != other.isHardware:
-			raise ValueError("Both need to be hardware or sourceFile.")
+			raise ValueError("Both need to be hardware or SourceFile.")
 		if self.isHardware:
-			return sourceFile({"file": "hardware"}, count=cast(int, self.count) + cast(int, other.count))
+			return SourceFile({"file": "hardware"}, count=cast(int, self.count) + cast(int, other.count))
 
 		#else we have a real file and indices are Bounds
 		self.pathJson = cast(dict, self.pathJson)
@@ -111,7 +111,7 @@ class sourceFile:
 				mergedIdx[-1][1] = max(mergedIdx[-1][1], end)
 			else:
 				mergedIdx.append([start, end])
-		return sourceFile({"file": self.pathJson}, mergedIdx)
+		return SourceFile({"file": self.pathJson}, mergedIdx)
 	def __add__(self, other):
 		return self.concat(other)
 	def __radd__(self, other):
@@ -125,14 +125,14 @@ class sourceFile:
 		self.count = concatedSrc.count
 		return self
 	
-	def breakAt(self, index: int) -> tuple["sourceFile", "sourceFile"]:
+	def breakAt(self, index: int) -> tuple["SourceFile", "SourceFile"]:
 		if self.isHardware:
 			self.count = cast(int, self.count)
 			if index <= 0 or index >= self.count:
 				raise ValueError(f"Index {index} is not within valid break range (1 to {self.count - 1}).")
 			return (
-				sourceFile({"file": "hardware"}, count=index),
-				sourceFile({"file": "hardware"}, count=self.count - index)
+				SourceFile({"file": "hardware"}, count=index),
+				SourceFile({"file": "hardware"}, count=self.count - index)
 			)
 		
 		self.indices = cast(Bounds, self.indices)
@@ -159,7 +159,7 @@ class sourceFile:
 				leftIndices.append([start, index - 1])
 				rightIndices.append([index, end])
 		
-		left = sourceFile({"file": self.pathJson}, leftIndices)
-		right = sourceFile({"file": self.pathJson}, rightIndices)
+		left = SourceFile({"file": self.pathJson}, leftIndices)
+		right = SourceFile({"file": self.pathJson}, rightIndices)
 		
 		return left, right
