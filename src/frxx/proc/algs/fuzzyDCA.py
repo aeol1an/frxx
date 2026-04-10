@@ -163,6 +163,16 @@ def processRay_S(
 	Arain, Anrain, PSDHF = calcAggregation(sZDR, sRHOHV, sZDRv, sRHOHVv, PSDH, filterStrength)
 	return sZDRv, sRHOHVv, Arain, Anrain, PSDHF
 
+
+@njit(
+	
+)
+def db_to_linear_2d(arr):
+	out = np.empty(arr.shape, dtype=np.float64)
+	for i in range(arr.shape[0]):
+		for j in range(arr.shape[1]):
+			out[i, j] = 10.0 ** (np.float64(arr[i, j]) / 10.0)
+	return out
 @njit(
 	[
 		'Tuple((float32[:], float32[:]))(float32[:,:], float32[:,:], float32[:], float32, boolean)',
@@ -170,11 +180,17 @@ def processRay_S(
 	],
 	cache=True, parallel=True, nogil=True
 )
-def processRay_M(PSDHF, PSDH, vACF, va, flipVel):
-	t = PSDHF.dtype
-	nr, nv = PSDHF.shape
-	PSDHF = 10**(PSDHF/10)
-	PSDH = 10**(PSDH/10)
+def processRay_M(PSDHFdb, PSDHdb, vACF, va, flipVel):
+	t = PSDHFdb.dtype
+	nr, nv = PSDHFdb.shape
+
+	#upcast to float64
+	PSDHF = np.empty(PSDHFdb.shape, dtype=np.float64)
+	PSDH = np.empty(PSDHFdb.shape, dtype=np.float64)
+	for i in prange(PSDHFdb.shape[0]):
+		for j in range(PSDHFdb.shape[1]):
+			PSDHF[i, j] = 10.0 ** (np.float64(PSDHFdb[i, j]) / 10.0)
+			PSDH[i, j] = 10.0 ** (np.float64(PSDHdb[i, j]) / 10.0)
 
 	vAxis = velocityAxis(nv, va, flipVel, 0, 0)
 
@@ -187,12 +203,21 @@ def processRay_M(PSDHF, PSDH, vACF, va, flipVel):
 			correction[r] = 0.0
 			continue
 		P = np.nansum(PSDHF[r])
+		if P < 1e-10:
+			vDCA[r] = np.nan
+			correction[r] = 0.0
+			continue
 		km = nanargmax(PSDHF[r])
 		vMax = vAxis[km]
 		delV = vAxis - vMax
 		Vn = 2 * va
 		delV = ((delV + va) % Vn) - va  # wrap into [-va, +va]
 		vDCA[r] = vMax + (1/P) * np.nansum(delV * PSDHF[r])
+		vDCA[r] = ((vDCA[r] + va) % Vn) - va
+
+		if np.isnan(vDCA[r]):
+			correction[r] = 0.0
+			continue
 
 		#calculate correction
 		iACF = np.argmin(np.abs(vAxis-vACF[r]))

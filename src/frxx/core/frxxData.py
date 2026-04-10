@@ -710,7 +710,7 @@ class frxxData(ABC):
 	def load(self, vars: List[str] | None = None):
 		if vars is None:
 			self.ds.load()
-		self.ds.update(self.ds[vars].load())
+		self.ds.update(self.ds[vars].load()) #type: ignore
 
 	@property
 	def vol(self) -> int:

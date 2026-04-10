@@ -14,28 +14,28 @@ import dask.array as da
 from numba import njit, prange
 from numba.typed import List as ListType
 
-@njit(
-	[
-		'Tuple((float32[:,:], float32[:,:]))'
-		'(ListType(float32[:,:]), ListType(float32[:,:]), float32[:,:], float32, boolean)',
+# @njit(
+# 	[
+# 		'Tuple((float32[:,:], float32[:,:]))'
+# 		'(ListType(float32[:,:]), ListType(float32[:,:]), float32[:,:], float32, boolean)',
 
-		'Tuple((float64[:,:], float64[:,:]))'
-		'(ListType(float64[:,:]), ListType(float64[:,:]), float64[:,:], float64, boolean)',
-	],
-	cache=True, parallel=True, nogil=True
-)
-def _processRaysP(PSDHF, PSDH, VEL, va, flipVel):
-	naz = len(PSDHF)
+# 		'Tuple((float64[:,:], float64[:,:]))'
+# 		'(ListType(float64[:,:]), ListType(float64[:,:]), float64[:,:], float64, boolean)',
+# 	],
+# 	cache=True, parallel=True, nogil=True
+# )
+# def _processRaysP(PSDHF, PSDH, VEL, va, flipVel):
+# 	naz = len(PSDHF)
 
-	DCAVEL = np.empty(VEL.shape, dtype=VEL.dtype)
-	DCAVC = np.empty(VEL.shape, dtype=VEL.dtype)
+# 	DCAVEL = np.empty(VEL.shape, dtype=VEL.dtype)
+# 	DCAVC = np.empty(VEL.shape, dtype=VEL.dtype)
 
-	for az in prange(naz):
-		vdca, corr = DCA.processRay_M(PSDHF[az], PSDH[az], VEL[az], va, flipVel)
-		DCAVEL[az,:] = vdca
-		DCAVC[az,:] = corr
+# 	for az in prange(naz):
+# 		vdca, corr = DCA.processRay_M(PSDHF[az], PSDH[az], VEL[az], va, flipVel)
+# 		DCAVEL[az,:] = vdca
+# 		DCAVC[az,:] = corr
 
-	return DCAVEL, DCAVC
+# 	return DCAVEL, DCAVC
 
 def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 	naz = len(PSDHF)
@@ -66,8 +66,13 @@ def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 def addFields(m: moments, s: spectra) -> None:
 	s.load(["PSDH", "PSDHF"])
 
-	#DCAVEL, DCAVDIFF = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
-	DCAVEL, DCAVDIFF = _processRays(ListType(s.PSDHF), ListType(s.PSDH), m.m_VEL, m.va[0], m.phaseReversed)
+	DCAVEL, DCAVDIFF = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
+	#DCAVEL, DCAVDIFF = _processRaysP(ListType(s.PSDHF), ListType(s.PSDH), m.VEL, m.va[0], m.phaseReversed)
+
+	print("DCAVDIFF NaNs match VEL mask?", np.array_equal(np.isnan(DCAVDIFF), m.mask))
+	print("Any DCAVDIFF NaN?", np.any(np.isnan(DCAVDIFF)))
+	print("_FILL_VALUES['int16'] =", _FILL_VALUES["int16"])
+
 
 	encoding = {
 		"dtype": "int16",
