@@ -152,9 +152,21 @@ def pathJsonEqual(pathJson1: dict, pathJson2: dict, prefixReqdEqual: bool = True
 		return False
 	return True
 
-def getCfrad(path: Optional[str | Path]= None) -> list[Path]:
+def getMoments(path: Optional[str | Path]= None) -> list[Path]:
 	if path is None:
 		path = Path(".")
 
 	return globPath(Path(path)/"cfrad.*.nc")
+
+def getIQ(path: Optional[str | Path]= None) -> list[Path]:
+	if path is None:
+		path = Path(".")
+
+	return globPath(Path(path)/"frxxIQ.*.nc")
+
+def getSpectra(path: Optional[str | Path]= None) -> list[Path]:
+	if path is None:
+		path = Path(".")
+
+	return globPath(Path(path)/"frxxSP.*.nc")
 

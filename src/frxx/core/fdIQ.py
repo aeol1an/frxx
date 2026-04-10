@@ -11,7 +11,7 @@ import warnings
 
 from datetime import datetime
 
-from ..utils import pathUtils, sourceFile, cfUtils
+from ..utils import pathUtils, SourceFile, cfUtils
 from .frxxData import _FILL_VALUES, frxxData
 
 class IQ(frxxData):
@@ -111,7 +111,7 @@ class IQ(frxxData):
 		
 		sfJson = {
 			"files": [
-				sourceFile.makeFromPathAndLength(
+				SourceFile.makeFromPathAndLength(
 					filename, 
 					len(self.ds["time"])
 				).toJson()
@@ -127,7 +127,7 @@ class IQ(frxxData):
 		
 		sfJson = json.loads(self.ds.attrs["source_files"])
 		for i in range(len(sfJson["files"])):
-			sfJson["files"][i] = sourceFile.makeFromJson(sfJson["files"][i])\
+			sfJson["files"][i] = SourceFile.makeFromJson(sfJson["files"][i])\
 				.editPlatformPrefix(platform, prefix).toJson()
 		self.ds.attrs["source_files"] = json.dumps(sfJson, indent='\t')
 
@@ -181,8 +181,8 @@ class IQ(frxxData):
 		selfSfJson = json.loads(self.ds.attrs["source_files"])
 		otherSfJson = json.loads(other.ds.attrs["source_files"])
 
-		selfFiles = [sourceFile.makeFromJson(f) for f in selfSfJson["files"]]
-		otherFiles = [sourceFile.makeFromJson(f) for f in otherSfJson["files"]]
+		selfFiles = [SourceFile.makeFromJson(f) for f in selfSfJson["files"]]
+		otherFiles = [SourceFile.makeFromJson(f) for f in otherSfJson["files"]]
 
 		for fileToAdd in otherFiles:
 			if fileToAdd.isHardware:
@@ -240,10 +240,10 @@ class IQ(frxxData):
 			raise ValueError("Index must be 1 to len(ds)-1.")
 		
 		sfJson = json.loads(self.ds.attrs["source_files"])
-		files = [sourceFile.makeFromJson(f) for f in sfJson["files"]]
+		files = [SourceFile.makeFromJson(f) for f in sfJson["files"]]
 
-		ds1Files: List[sourceFile] = []
-		ds2Files: List[sourceFile] = []
+		ds1Files: List[SourceFile] = []
+		ds2Files: List[SourceFile] = []
 		accumulated = 0
 
 		for f in files:

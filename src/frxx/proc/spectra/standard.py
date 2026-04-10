@@ -66,7 +66,7 @@ def _processRay(
 	return (np.ascontiguousarray(h), np.ascontiguousarray(v),
 			np.ascontiguousarray(d), np.ascontiguousarray(r), np.ascontiguousarray(m))
 
-def _processRaysDelayed(
+def processRays(
 	iqh, iqv,
 	pulseBoundaries, azIncreasing,
 	window,
@@ -197,7 +197,7 @@ def calculatePPIDPSD(
 
 	azIncreasing = np.mean(np.sign(np.diff(az))) > 0
 	k, a = algs.res._subsetIQStrToInt(KOffset, avgStrat)
-	PSDH, PSDV, sZDR, sRHOHV, mask = _processRaysDelayed(
+	PSDH, PSDV, sZDR, sRHOHV, mask = processRays(
 		iqh, iqv, pulseBoundaries, azIncreasing, w, swathPulses,
 		nBootstraps,
 		K, k,

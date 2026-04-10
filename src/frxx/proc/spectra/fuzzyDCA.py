@@ -13,7 +13,7 @@ import numpy as np
 import dask as d
 import dask.array as da
 
-def _processRaysDelayed(
+def processRays(
 	PSDH: List[NDArray], 
 	sZDR: List[NDArray], sRHOHV: List[NDArray], 
 	nf: NDArray,
@@ -48,7 +48,7 @@ def _processRaysDelayed(
 def addFields(s: spectra, pts: int = 9, filterStrength: float = 8.0, delayed = True) -> None:
 	s.load(["PSDH", "sZDR", "sRHOHV", "mask"])
 
-	sZDRv, sRHOHVv, Arain, Anrain, PSDHF = _processRaysDelayed(
+	sZDRv, sRHOHVv, Arain, Anrain, PSDHF = processRays(
 		s.m_PSDH,
 		s.m_sZDR, s.m_sRHOHV,
 		s.vlens,

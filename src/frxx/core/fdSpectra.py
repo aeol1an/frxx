@@ -244,6 +244,10 @@ class spectra(frxxData):
 		return np.ascontiguousarray(self.ds["pulse_boundaries"].data).astype(np.int64)
 	
 	@property
+	def sb(self) -> NDArray:
+		return np.ascontiguousarray(self.ds["spectra_boundaries"].data).astype(np.int64)
+	
+	@property
 	def mask(self) -> List[NDArray[np.bool_]]:
 		if not self.requiredBools["mask"]:
 			raise AttributeError("Mask has not been set.")
