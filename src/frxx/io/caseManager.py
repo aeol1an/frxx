@@ -116,9 +116,13 @@ class FrxxCase:
 			filename = filename.split(".",1)[1]
 		return [x.name.split(".",1)[1] for x in self.iqFiles].index(filename)
 	
-	def getAtIndex(self, dtype: str, index: int, beamSpec: str | None = None, fourierSpec: str | None = None):
+	def getAtIndex(self, index: int, dtype: str, filename: str | None = None, beamSpec: str | None = None, fourierSpec: str | None = None):
 		if dtype not in ["moments", "spectra", "IQ"]:
 			raise ValueError("dtype invalid.")
+		if filename is not None:
+			#relative
+			index += self.getIndex(filename)
+
 		if dtype == "IQ":
 			return self.iqFiles[index]
 		if dtype == "moments":
@@ -137,7 +141,11 @@ class FrxxCase:
 
 
 class _Computation:
-	def parseSpec(self, arg: Any, curFilename: Path | None = None):
+	def parseSpec(
+			self, arg: Any, 
+			case: FrxxCase | None = None, curFilename: str | None = None, 
+			beamSpec: str | None = None, fourierSpec: str | None = None
+		):
 		if not isinstance(arg, str):
 			return arg
 
@@ -156,30 +164,46 @@ class _Computation:
 		varName = varName.strip()
 
 		if indexStr == '':
-			path = getPathFromIndex(0, dType, curIdx=curIdx)
+			if case is None:
+				raise ValueError("A valid case is needed to index by number.")
+			path = case.getAtIndex(0, dType, curFilename, beamSpec, fourierSpec)
 
 		elif indexStr.startswith('r'):
+			if case is None:
+				raise ValueError("A valid case is needed to index by number.")
 			relIdx = int(indexStr[1:])
-			path = getPathFromIndex(relIdx, dType, curIdx=curIdx)
+			path = case.getAtIndex(relIdx, dType, curFilename, beamSpec, fourierSpec)
 
 		elif re.match(r'^-?\d+$', indexStr):
+			if case is None:
+				raise ValueError("A valid case is needed to index by number.")
 			absIdx = int(indexStr)
-			path = getPathFromIndex(absIdx, dType, curIdx=None)
+			path = case.getAtIndex(absIdx, dType, None, beamSpec, fourierSpec)
 
 		else:
 			path = Path(indexStr).resolve()
 			if not path.exists():
 				raise FileNotFoundError(f"Specified file does not exist: {path}")
 
-		return getVar(path, varName)
+		return getVar(path, varName) #TODO implement this, should be quite easy.
 
 
-	def __init__(self, computationJson: str, case: FrxxCase | None = None):
-		computationDict = json.loads(computationJson)
-		self.retVars: List[str] = computationDict["return_variables"]
-		path, fn = computationDict["function"].rsplit(".", 1)
-		self.function = getattr(importlib.import_module(path), fn)
-		self.kwargs: dict = computationDict["kwargs"]
+	def __init__(self, computationJson: str | None = None, case: FrxxCase | None = None):
+		if computationJson is None:
+			#start from scratch - TODO here
+		else:
+			computationDict = json.loads(computationJson)
+			self.retVars: List[str] = computationDict["return_variables"]
+			path, fn = computationDict["function"].rsplit(".", 1)
+			self.function = getattr(importlib.import_module(path), fn)
+
+			curFileName = computationDict["filename"]
+			beamSpec = computationDict["beam_spec"]
+			fourierSpec = computationDict["fourier_spec"]
+
+			self.kwargs: dict = computationDict["kwargs"]
+			self.kwargs = {k: self.parseSpec(self.kwargs[k], case, ) for k in self.kwargs.keys()}
+
 			
 	def toJson(self) -> str:
 			return ""
