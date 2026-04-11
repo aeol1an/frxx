@@ -162,6 +162,10 @@ class moments(frxxData):
 		return True
 
 	@property
+	def beamSpec(self) -> str:
+		return self.ds.attrs["beam_spec"]
+
+	@property
 	def pb(self) -> NDArray:
 		return np.ascontiguousarray(self.ds["pulse_boundaries"].data).astype(np.int64)
 	

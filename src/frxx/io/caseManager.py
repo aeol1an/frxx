@@ -9,7 +9,6 @@ import numpy as np
 import xarray as xr
 
 import re
-
 import json
 
 from ..core import IQ, moments, spectra
@@ -116,46 +115,63 @@ class FrxxCase:
 		if prefixIncluded:
 			filename = filename.split(".",1)[1]
 		return [x.name.split(".",1)[1] for x in self.iqFiles].index(filename)
+	
+	def getAtIndex(self, dtype: str, index: int, beamSpec: str | None = None, fourierSpec: str | None = None):
+		if dtype not in ["moments", "spectra", "IQ"]:
+			raise ValueError("dtype invalid.")
+		if dtype == "IQ":
+			return self.iqFiles[index]
+		if dtype == "moments":
+			if beamSpec is None:
+				raise ValueError("beamSpec must be set if moment requested.")
+			return self.outFiles[beamSpec]["moment_files"][index]
+		if dtype == "spectra":
+			if (beamSpec is None or fourierSpec is None):
+				raise ValueError("beamSpec and fourierSpec must be set if spectra requestied.")
+			match = su.matchFourierSpec(self.outFiles[beamSpec]["spectra"].keys(), fourierSpec)
+			if match is None:
+				raise IndexError("No matching fourierSpec found.")
+			return self.outFiles[beamSpec]["spectra"][match]["files"][index]
 
 
 
 
 class _Computation:
-	# def parseSpec(self, arg: Any, curFilename: Path | None = None):
-	# 	if not isinstance(arg, str):
-	# 		return arg
+	def parseSpec(self, arg: Any, curFilename: Path | None = None):
+		if not isinstance(arg, str):
+			return arg
 
-	# 	match = re.match(r'^(iq|m|s)\[(.*?)\]->(.+)$', arg.strip())
-	# 	if not match:
-	# 		return arg
+		match = re.match(r'^(iq|m|s)\[(.*?)\]->(.+)$', arg.strip())
+		if not match:
+			return arg
 
-	# 	dType, indexStr, varName = match.groups()
-	# 	if dType == "iq":
-	# 		dType = "IQ"
-	# 	elif dType == "m":
-	# 		dType = "moments"
-	# 	elif dType == "s":
-	# 		dType = "spectra"
-	# 	indexStr = indexStr.strip()
-	# 	varName = varName.strip()
+		dType, indexStr, varName = match.groups()
+		if dType == "iq":
+			dType = "IQ"
+		elif dType == "m":
+			dType = "moments"
+		elif dType == "s":
+			dType = "spectra"
+		indexStr = indexStr.strip()
+		varName = varName.strip()
 
-	# 	if indexStr == '':
-	# 		path = getPathFromIndex(0, dType, curIdx=curIdx)
+		if indexStr == '':
+			path = getPathFromIndex(0, dType, curIdx=curIdx)
 
-	# 	elif indexStr.startswith('r'):
-	# 		relIdx = int(indexStr[1:])
-	# 		path = getPathFromIndex(relIdx, dType, curIdx=curIdx)
+		elif indexStr.startswith('r'):
+			relIdx = int(indexStr[1:])
+			path = getPathFromIndex(relIdx, dType, curIdx=curIdx)
 
-	# 	elif re.match(r'^-?\d+$', indexStr):
-	# 		absIdx = int(indexStr)
-	# 		path = getPathFromIndex(absIdx, dType, curIdx=None)
+		elif re.match(r'^-?\d+$', indexStr):
+			absIdx = int(indexStr)
+			path = getPathFromIndex(absIdx, dType, curIdx=None)
 
-	# 	else:
-	# 		path = Path(indexStr).resolve()
-	# 		if not path.exists():
-	# 			raise FileNotFoundError(f"Specified file does not exist: {path}")
+		else:
+			path = Path(indexStr).resolve()
+			if not path.exists():
+				raise FileNotFoundError(f"Specified file does not exist: {path}")
 
-	# 	return getVar(path, varName)
+		return getVar(path, varName)
 
 
 	def __init__(self, computationJson: str, case: FrxxCase | None = None):

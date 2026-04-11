@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Annotated
+from typing import Tuple, List, Any, Annotated
 
 import re
 
@@ -30,7 +30,7 @@ def constructFourierSpec(
 	return (
 		(f"i{_parseNum(pulsesIn, 'input')}") +
 		(f"o{_parseNum(nFFTOut, 'output')}") +
-		("aR1A1" if avgStrat is None else f"aR{avgStrat[0]}A{avgStrat[1]}") +
+		("" if avgStrat is None else f"aR{avgStrat[0]}A{avgStrat[1]}") +
 		("" if bootstrap is None else f"b{bootstrap}")
 	)
 def parseFourierSpec(arg: str):
@@ -77,3 +77,14 @@ def parseFourierSpec(arg: str):
 		else:
 			return None
 	return result
+def matchFourierSpec(candidates: List[str], toMatch: str) -> str | None:
+	target = parseFourierSpec(toMatch)
+	if target is None:
+		raise ValueError(f"Failed to parse spec: {toMatch}")
+	for c in candidates:
+		parsed = parseFourierSpec(c)
+		if parsed is None:
+			raise ValueError(f"Failed to parse spec: {c}")
+		if parsed == target:
+			return c
+	return None
