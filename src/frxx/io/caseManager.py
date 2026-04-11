@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Any, Annotated
+from typing import List, Tuple, Any
 
 import importlib
 
@@ -14,8 +14,7 @@ import json
 
 from ..core import IQ, moments, spectra
 from ..utils import pathUtils as pu
-
-AvgStrat = Annotated[Tuple[int, int] | None, "None if no averaging, or a Tuple of (K_r, K_az)"]
+from ..utils import stringUtils as su
 
 supportedInputs = ["rk"]
 
@@ -31,83 +30,9 @@ def frxxDataFromFile(filename: str | Path):
 		return moments(ds)
 	elif type == "spectra":
 		return spectra(ds)
-	
-def constructBeamSpec(angleSpacingDeg: float, beamOverlapDeg):
-	 return ("s"+str(angleSpacingDeg)+"o"+str(beamOverlapDeg))
-def parseBeamSpec(arg: str):
-	match = re.match(r'^s([\d.+-]+)o([\d.+-]+)$', arg.strip())
-	if not match:
-		return False
-
-	angleSpacingDeg = float(match.group(1))
-	beamOverlapDeg = float(match.group(2))
-
-	return angleSpacingDeg, beamOverlapDeg
-
-def constructFourierSpec(
-		pulsesIn: int | None, nFFTOut: int | None, 
-		avgStrat: AvgStrat = None, 
-		bootstrap: int | None = None
-	):
-	def _parseNum(num: int | None, io: str) -> str:
-		if num is None:
-			return "0"
-		if num < 2:
-			raise ValueError(f"Can't take FFT with {io} array less than 2 elements long.")
-		return str(num)
-	return (
-		(f"i{_parseNum(pulsesIn, 'input')}") +
-		(f"o{_parseNum(nFFTOut, 'output')}") +
-		("aR1A1" if avgStrat is None else f"aR{avgStrat[0]}A{avgStrat[1]}") +
-		("" if bootstrap is None else f"b{bootstrap}")
-	)
-def parseFourierSpec(arg: str):
-	s = arg.strip()
-	idx = 0
-	result: dict[str, Any] = {
-		"pulsesIn": None,
-		"nFFTOut": None,
-		"avgStrat": None,
-		"bootstrap": None,
-	}
-	def readInt():
-		nonlocal idx
-		start = idx
-		while idx < len(s) and s[idx].isdigit():
-			idx += 1
-		if start == idx:
-			return None
-		return int(s[start:idx])
-	while idx < len(s):
-		c = s[idx]
-		if c == 'i':
-			idx += 1
-			val = readInt()
-			result["pulsesIn"] = None if val == 0 else val
-		elif c == 'o':
-			idx += 1
-			val = readInt()
-			result["nFFTOut"] = None if val == 0 else val
-		elif c == 'a':
-			idx += 1
-			if idx >= len(s) or s[idx] != 'R':
-				return False
-			idx += 1
-			r = readInt()
-			if idx >= len(s) or s[idx] != 'A':
-				return False
-			idx += 1
-			a = readInt()
-			result["avgStrat"] = None if (r == 1 and a == 1) else (r, a)
-		elif c == 'b':
-			idx += 1
-			result["bootstrap"] = readInt()
-		else:
-			return False
-	return result
 
 
-def _getPriorityFolder(path: Path, foldersAscendingPriority: List[str], getter):
+def _getPriorityFolder(path: Path, foldersAscendingPriority: List[str], getter) -> Tuple[Path, List[Path]] | None:
 	folderpaths = [pu.validatePath(path/folder, mustBeDir=True) for folder in foldersAscendingPriority]
 	if all(x is None for x in folderpaths):
 		return None
@@ -122,15 +47,15 @@ def _getPriorityFolder(path: Path, foldersAscendingPriority: List[str], getter):
 	if len(files) == 0:
 		return None
 	
-	return folder, files
+	return folder, files #type: ignore
 
 class FrxxCase:
 	def __init__(self, path: str | Path):
-		self.path = pu.validatePath(path, mustBeDir=True)
+		self.path: Path = pu.validatePath(path, mustBeDir=True) #type: ignore
 		if self.path is None:
 			raise FileNotFoundError("Path is not a valid directory.")
 		
-		self.iqDir = pu.validatePath(self.path/"iq", mustBeDir=True)
+		self.iqDir: Path = pu.validatePath(self.path/"iq", mustBeDir=True) #type: ignore
 		if self.iqDir is None:
 			raise FileNotFoundError("Must have an iq directory!")
 		
@@ -139,12 +64,12 @@ class FrxxCase:
 			raise FileNotFoundError("No IQ data folders found.")
 		self.iqDir, self.iqFiles = sr
 		
-		self.outDir = pu.validatePath(self.path/"out", mustBeDir=True)
+		self.outDir: Path = pu.validatePath(self.path/"out", mustBeDir=True) #type: ignore
 		if self.outDir is None:
 			(self.path/"out").mkdir()
 			self.outDir = (self.path/"out")
 
-		self.outFiles: dict[str, Any] = {x.name: {} for x in self.outDir.iterdir() if x.is_dir() and parseBeamSpec(x.name)}
+		self.outFiles: dict[str, Any] = {x.name: {} for x in self.outDir.iterdir() if x.is_dir() and su.parseBeamSpec(x.name)}
 
 		#it's okay if nothing is in out, but if there is something it needs to follow constraints.
 		for beamSpec, contents in self.outFiles.items():
@@ -154,10 +79,10 @@ class FrxxCase:
 			s = pu.validatePath(self.outDir/beamSpec/"spectra", mustBeDir=True)
 
 			if s is not None:
-				fSpecs = {x.name: {} for x in s.iterdir() if x.is_dir() and parseFourierSpec(x.name)}	
+				fSpecs = {x.name: {} for x in s.iterdir() if x.is_dir() and su.parseFourierSpec(x.name)}	
 				if len(fSpecs) == 0:
 					raise FileNotFoundError("Spectra folder is empty.")
-				parsed = [parseFourierSpec(x) for x in fSpecs.keys()]
+				parsed = [su.parseFourierSpec(x) for x in fSpecs.keys()]
 				seen = []
 				for p in parsed:
 					if p in seen:
@@ -168,22 +93,30 @@ class FrxxCase:
 					sFSpec = _getPriorityFolder(self.outDir/beamSpec/"spectra"/fSpec, [*delayedSpectra, "full"], pu.getSpectra)
 					if sFSpec is not None:
 						_, l = sFSpec
-						if len(l) != len(self.iqFiles):
-							raise ValueError("Number of moment and iq files in folder do not match.")
+						if len(l) != len(self.iqFiles) or [x.name.split(".",1)[1] for x in l] == [x.name.split(".",1)[1] for x in self.iqFiles]:
+							raise ValueError("Number or names of spectra and iq files in folder do not match.")
 						specContents["files"] = l
+					else:
+						raise FileNotFoundError(f"Could not find any spectra files in folder {fSpec}")
 				contents["spectra"] = fSpecs
 
 			if m is not None:
 				_, l = m
-				if len(l) != len(self.iqFiles):
-					raise ValueError("Number of moment and iq files do not match.")
+				if len(l) != len(self.iqFiles) or [x.name.split(".",1)[1] for x in l] == [x.name.split(".",1)[1] for x in self.iqFiles]:
+					raise ValueError("Number or names of moment and iq files do not match.")
 				contents["moment_files"] = l
 
 			if s is None and m is None:
 				raise FileNotFoundError("Either Spectra or Moments must exist.")
 
 	def toJson(self) -> str:
-		return ""
+		return json.dumps(pu.pathToJson(self.path), indent='\t')
+	
+	def getIndex(self, filename: str, prefixIncluded: bool = True) -> int:
+		if prefixIncluded:
+			filename = filename.split(".",1)[1]
+		return [x.name.split(".",1)[1] for x in self.iqFiles].index(filename)
+
 
 
 

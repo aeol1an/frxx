@@ -1,7 +1,7 @@
 import numpy as np
 import xarray as xr
 
-from typing import List, Union, Sequence
+from typing import Tuple, List, Union, Sequence, Annotated
 from numpy.typing import NDArray
 
 import dask.array as da
@@ -9,6 +9,9 @@ import dask.array as da
 from numba.typed import List as ListType
 
 from .frxxData import _FILL_VALUES, frxxData
+from ..utils import stringUtils as su
+
+AvgStrat = Annotated[Tuple[int, int] | None, "None if no averaging, or a Tuple of (K_r, K_az)"]
 
 class spectra(frxxData):
 	def __init__(self, ds: xr.Dataset | None = None):
@@ -27,6 +30,8 @@ class spectra(frxxData):
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
+		self.requiredBools["beam_spec"] = False
+		self.requiredBools["fourier_spec"] = False
 
 		if ds is None:
 			self.ds.attrs["frxx_data_type"] = "spectra"
@@ -46,6 +51,34 @@ class spectra(frxxData):
 			valid = self.validateSelf()
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
+
+	def setBeamSpec(self, angleSpacingDeg: float, beamOverlapDeg: float):
+		if angleSpacingDeg <= 0 or beamOverlapDeg < 0:
+			raise ValueError("Angle Spacing should be greater than 0 and beamOverlap should be 0 or greater.")
+		if not np.isclose(1/angleSpacingDeg, np.round(1/angleSpacingDeg)):
+			raise ValueError("Angle spacing should fit cleanly into one degree.")
+		self.ds.attrs["beam_spec"] = su.constructBeamSpec(angleSpacingDeg, beamOverlapDeg)
+		self.requiredBools["beam_spec"] = True
+
+	def setFourierSpec(
+		self, 
+		pulsesIn: int | None, nFFTOut: int | None, 
+		avgStrat: AvgStrat = None, 
+		bootstrap: int | None = None
+	):
+		if (pulsesIn is not None and pulsesIn < 2) or (nFFTOut is not None and nFFTOut < 2):
+			raise ValueError("pulsesIn and nFFTOut should be None or 2 or greater.")
+		if (avgStrat is not None):
+			if (not (isinstance(avgStrat, tuple) and len(avgStrat) == 2)
+				and (all(isinstance(x, int) for x in avgStrat))):
+				raise TypeError("avgStrat must be a tuple of two ints")
+			if avgStrat[0] < 1 or avgStrat[1] < 1:
+				raise ValueError("Both values of avgStrat must be one or greater")
+		if (bootstrap is not None) and bootstrap < 2:
+			raise ValueError("Bootstrap must be minimum 2 or None.")
+		
+		self.ds.attrs["fourier_spec"] = su.constructFourierSpec(pulsesIn, nFFTOut, avgStrat, bootstrap)
+		self.requiredBools["fourier_spec"] = True
 
 	def setPulseBoundaries(self, boundaries: NDArray[np.int64]):
 		if (boundaries.dtype != np.int64):
@@ -230,6 +263,12 @@ class spectra(frxxData):
 		#check SNR_threshold
 		vars = ["SNR_threshold"]
 		self.requiredBools["SNR_threshold"] = self._checkVars(vars, False)
+
+		attrs = ["beam_spec"]
+		self.requiredBools["beam_spec"] = self._checkAttrs(attrs)
+
+		attrs = ["fourier_spec"]
+		self.requiredBools["fourier_spec"] = self._checkAttrs(attrs)
 
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()

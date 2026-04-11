@@ -5,6 +5,7 @@ from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
 from .frxxData import _FILL_VALUES, frxxData
+from ..utils import stringUtils as su
 
 class moments(frxxData):
 	def __init__(self, ds: xr.Dataset | None = None):
@@ -19,6 +20,7 @@ class moments(frxxData):
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
+		self.requiredBools["beam_spec"] = True
 
 		if ds is None:
 			self.ds.attrs["frxx_data_type"] = "moments"
@@ -40,6 +42,14 @@ class moments(frxxData):
 			valid = self.validateSelf()
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
+
+	def setBeamSpec(self, angleSpacingDeg: float, beamOverlapDeg: float):
+		if angleSpacingDeg <= 0 or beamOverlapDeg < 0:
+			raise ValueError("Angle Spacing should be greater than 0 and beamOverlap should be 0 or greater.")
+		if not np.isclose(1/angleSpacingDeg, np.round(1/angleSpacingDeg)):
+			raise ValueError("Angle spacing should fit cleanly into one degree.")
+		self.ds.attrs["beam_spec"] = su.constructBeamSpec(angleSpacingDeg, beamOverlapDeg)
+		self.requiredBools["beam_spec"] = True
 
 	def setPulseBoundaries(self, boundaries: NDArray[np.int64]):
 		if (boundaries.dtype != np.int64):
@@ -138,6 +148,10 @@ class moments(frxxData):
 		#check mask
 		vars = ["mask"]
 		self.requiredBools["mask"] = self._checkVars(vars)
+
+		#beam spec
+		attrs = ["beam_spec"]
+		self.requiredBools["beam_spec"] = self._checkAttrs(attrs)
 
 	def validateSelf(self) -> bool:
 		base = super()._validateSelf()
