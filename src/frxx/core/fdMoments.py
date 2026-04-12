@@ -4,6 +4,8 @@ import xarray as xr
 from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
+import json
+
 from .frxxData import _FILL_VALUES, frxxData
 from ..utils import stringUtils as su
 
@@ -20,7 +22,7 @@ class moments(frxxData):
 		self.requiredBools["pulse_boundaries"] = False
 		self.requiredBools["SNR_threshold"] = False
 		self.requiredBools["mask"] = False
-		self.requiredBools["beam_spec"] = True
+		self.requiredBools["beam_spec"] = False
 
 		if ds is None:
 			self.ds.attrs["frxx_data_type"] = "moments"
@@ -42,6 +44,8 @@ class moments(frxxData):
 			valid = self.validateSelf()
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
+			self.dataVars = json.loads(self.ds.attrs["data_vars"])
+			self.ds["mask"].data = self.ds["mask"].data
 
 	def setBeamSpec(self, angleSpacingDeg: float, beamOverlapDeg: float):
 		if angleSpacingDeg <= 0 or beamOverlapDeg < 0:
@@ -111,6 +115,7 @@ class moments(frxxData):
 			}
 		)
 		
+		self._addDataVarToList("mask")
 		self.requiredBools["mask"] = True
 
 	def addDataField(self, name: str, data: NDArray, attrs, encoding):
@@ -125,7 +130,7 @@ class moments(frxxData):
 			attrs = attrs,
 			encoding = encoding
 		)
-		self._incDataCounts()
+		self._addDataVarToList(name)
 
 	def constructFilename(self) -> str:
 		return super()._constructFilename("cfradial")
@@ -171,7 +176,8 @@ class moments(frxxData):
 	
 	@property
 	def mask(self) -> NDArray:
-		return np.ascontiguousarray(self.ds["mask"].data).astype(bool)
+		self.ds["mask"].data = np.ascontiguousarray(self.ds["mask"].data).astype(bool)
+		return self.ds["mask"].data
 	
 	def __getattr__(self, name):
 		if name.startswith("m_"):
@@ -184,7 +190,9 @@ class moments(frxxData):
 		if name not in self.ds:
 			raise ValueError("Attribute not found in dataset.")
 		
+		self.ds[name].data = np.ascontiguousarray(self.ds[name].data)
+
 		if masked:
-			return np.where(self.mask, np.ascontiguousarray(self.ds[name].data), np.nan)
+			return np.where(self.mask, self.ds[name].data, np.nan)
 		else:
-			return np.ascontiguousarray(self.ds[name].data)
+			return self.ds[name].data

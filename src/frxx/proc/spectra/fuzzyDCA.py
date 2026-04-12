@@ -13,6 +13,8 @@ import numpy as np
 import dask as d
 import dask.array as da
 
+import time as timel
+
 def processRays(
 	PSDH: List[NDArray], 
 	sZDR: List[NDArray], sRHOHV: List[NDArray], 
@@ -46,8 +48,6 @@ def processRays(
 
 
 def addFields(s: spectra, pts: int = 9, filterStrength: float = 8.0, delayed = True) -> None:
-	s.load(["PSDH", "sZDR", "sRHOHV", "mask"])
-
 	sZDRv, sRHOHVv, Arain, Anrain, PSDHF = processRays(
 		s.m_PSDH,
 		s.m_sZDR, s.m_sRHOHV,
@@ -57,14 +57,14 @@ def addFields(s: spectra, pts: int = 9, filterStrength: float = 8.0, delayed = T
 	encoding = {
 		"dtype": "int16",
 		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.01,
-		"add_offset": 0.0
+		"scale_factor": np.float32(0.01),
+		"add_offset": np.float32(0.0)
 	}
 	encodingSmall = {
 		"dtype": "int16",
 		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.0001,
-		"add_offset": 0.0
+		"scale_factor": np.float32(0.0001),
+		"add_offset": np.float32(0.0)
 	}
 
 	s.addDataField('sZDRv', sZDRv, encoding=encoding,

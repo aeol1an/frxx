@@ -133,6 +133,7 @@ def calculateDualPolPPIACF(
 	m.setPol(2)
 	m.setNoisedB(iq.N0)
 	m.setSNRThreshold(SNRthresholddB)
+	m.setBeamSpec(azSpacingDeg, beamOverlapDeg)
 	m.setPulseBoundaries(pulseBoundaries)
 
 	mask =  (SNRH > SNRthresholddB[0]) & \
@@ -145,8 +146,8 @@ def calculateDualPolPPIACF(
 	encoding = {
 		"dtype": "int16",
 		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.01,
-		"add_offset": 0.0
+		"scale_factor": np.float32(0.01),
+		"add_offset": np.float32(0.0)
 	}
 
 	m.addDataField('DBZ', DBZ.astype(np.float32), encoding=encoding,

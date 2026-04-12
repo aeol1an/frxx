@@ -53,6 +53,7 @@ class IQ(frxxData):
 			valid = self.validateSelf()
 			if not valid:
 				raise RuntimeError("Invalid frxxIQ format. See above.")
+			self.dataVars = json.loads(self.ds.attrs["data_vars"])
 
 	def setCal(self, Zcal_db: Union[NDArray[np.floating], Sequence[float]], Dcal_db: float | None = None, Pcal_deg: float | None = None):
 		if not self.requiredBools["pol"]:
@@ -141,7 +142,7 @@ class IQ(frxxData):
 			attrs = attrs,
 			encoding = encoding
 		)
-		self._incDataCounts()
+		self._addDataVarToList(name)
 
 	def constructFilename(self) -> str:
 		return super()._constructFilename("frxxIQ")

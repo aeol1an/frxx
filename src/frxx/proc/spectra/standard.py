@@ -2,9 +2,10 @@ from ...core import IQ, moments, spectra
 from ...core.frxxData import _FILL_VALUES
 
 from ...utils import findPulseBoundaries
+from ...utils import stringUtils as su
 from .. import algs
 
-from typing import Tuple, List
+from typing import Tuple, cast
 from numpy.typing import NDArray
 
 import numpy as np
@@ -101,11 +102,12 @@ def processRays(
 
 	results = []
 	for product in range(5):
+		dt = np.float32 if product != 4 else np.bool_
 		chunks = [
 			da.from_delayed(
-				rays[az][product].astype(np.float32), #type: ignore
+				rays[az][product].astype(dt), #type: ignore
 				shape=(nr, nf[az]),
-				dtype=np.float32,
+				dtype=dt,
 			)
 			for az in range(naz)
 		]
@@ -185,6 +187,9 @@ def calculatePPIDPSD(
 		prt = m.prt
 		wavelength = m.wavelength
 		pulseBoundaries = m.pb
+		bs = su.parseBeamSpec(m.beamSpec)
+		if bs is None:
+			raise ValueError("Invalid beamspec.")
 	else:
 		pulseBoundaries, azUnique = findPulseBoundaries(iq.az, azSpacingDeg, beamOverlapDeg)
 		middlePulses = np.rint(pulseBoundaries.mean(axis=1)).astype(np.int32)
@@ -194,7 +199,8 @@ def calculatePPIDPSD(
 		pw = iq.pw[middlePulses]
 		prt = iq.prt[middlePulses]
 		wavelength = iq.wavelength[middlePulses]
-
+		bs = (azSpacingDeg, beamOverlapDeg)
+	bs = cast(Tuple[float, float], bs)
 	azIncreasing = np.mean(np.sign(np.diff(az))) > 0
 	k, a = algs.res._subsetIQStrToInt(KOffset, avgStrat)
 	PSDH, PSDV, sZDR, sRHOHV, mask = processRays(
@@ -227,6 +233,8 @@ def calculatePPIDPSD(
 	s.setPol(2)
 	s.setNoisedB(iq.N0)
 	s.setSNRThreshold(SNRthresholddB)
+	s.setBeamSpec(*bs)
+	s.setFourierSpec(None, None, None, nBootstraps)
 	s.setPulseBoundaries(pulseBoundaries)
 
 	s.setMask(mask, "True if SNR below threshold or linear PSDs, ZDR below 0.")
@@ -234,8 +242,8 @@ def calculatePPIDPSD(
 	encoding = {
 		"dtype": "int16",
 		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.01,
-		"add_offset": 0.0
+		"scale_factor": np.float32(0.01),
+		"add_offset": np.float32(0.0)
 	}
 
 	s.addDataField('PSDH', PSDH, encoding=encoding,

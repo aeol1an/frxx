@@ -17,7 +17,7 @@ from ..utils import stringUtils as su
 
 supportedInputs = ["rk"]
 
-def frxxDataFromFile(filename: str | Path):
+def frxxDataFromFile(filename: str | Path) -> IQ | moments | spectra:
 	ds = xr.open_dataset(filename)
 	if "frxx_data_type" not in ds.attrs:
 		raise AttributeError("Netcdf file not created by frxx.")
@@ -29,6 +29,8 @@ def frxxDataFromFile(filename: str | Path):
 		return moments(ds)
 	elif type == "spectra":
 		return spectra(ds)
+	
+	raise ValueError("Unknown frxx_data_type")
 
 
 def _getPriorityFolder(path: Path, foldersAscendingPriority: List[str], getter) -> Tuple[Path, List[Path]] | None:
@@ -116,7 +118,7 @@ class FrxxCase:
 			filename = filename.split(".",1)[1]
 		return [x.name.split(".",1)[1] for x in self.iqFiles].index(filename)
 	
-	def getAtIndex(self, index: int, dtype: str, filename: str | None = None, beamSpec: str | None = None, fourierSpec: str | None = None):
+	def getAtIndex(self, index: int, dtype: str, filename: str | None = None, beamSpec: str | None = None, fourierSpec: str | None = None) -> Path:
 		if dtype not in ["moments", "spectra", "IQ"]:
 			raise ValueError("dtype invalid.")
 		if filename is not None:
@@ -125,11 +127,11 @@ class FrxxCase:
 
 		if dtype == "IQ":
 			return self.iqFiles[index]
-		if dtype == "moments":
+		elif dtype == "moments":
 			if beamSpec is None:
 				raise ValueError("beamSpec must be set if moment requested.")
 			return self.outFiles[beamSpec]["moment_files"][index]
-		if dtype == "spectra":
+		else:
 			if (beamSpec is None or fourierSpec is None):
 				raise ValueError("beamSpec and fourierSpec must be set if spectra requestied.")
 			match = su.matchFourierSpec(self.outFiles[beamSpec]["spectra"].keys(), fourierSpec)
@@ -166,7 +168,7 @@ class _Computation:
 		if indexStr == '':
 			if case is None:
 				raise ValueError("A valid case is needed to index by number.")
-			path = case.getAtIndex(0, dType, curFilename, beamSpec, fourierSpec)
+			path: Path = case.getAtIndex(0, dType, curFilename, beamSpec, fourierSpec)
 
 		elif indexStr.startswith('r'):
 			if case is None:
@@ -185,11 +187,16 @@ class _Computation:
 			if not path.exists():
 				raise FileNotFoundError(f"Specified file does not exist: {path}")
 
-		return getVar(path, varName) #TODO implement this, should be quite easy.
+		data = frxxDataFromFile(path)
+		if data.type != dType:
+			raise RuntimeError("Gotten file doesn't match requested type.")
+
+		return getattr(data, varName)
 
 
 	def __init__(self, computationJson: str | None = None, case: FrxxCase | None = None):
 		if computationJson is None:
+			pass
 			#start from scratch - TODO here
 		else:
 			computationDict = json.loads(computationJson)

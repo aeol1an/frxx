@@ -63,22 +63,20 @@ def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 	return tuple(results)
 
 
-def addFields(m: moments, s: spectra) -> None:
-	s.load(["PSDH", "PSDHF"])
-
+def addFields(m: moments, s: spectra, delayed=False) -> None:
 	DCAVEL, DCAVDIFF = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
 	#DCAVEL, DCAVDIFF = _processRaysP(ListType(s.PSDHF), ListType(s.PSDH), m.VEL, m.va[0], m.phaseReversed)
 
-	print("DCAVDIFF NaNs match VEL mask?", np.array_equal(np.isnan(DCAVDIFF), m.mask))
-	print("Any DCAVDIFF NaN?", np.any(np.isnan(DCAVDIFF)))
-	print("_FILL_VALUES['int16'] =", _FILL_VALUES["int16"])
+	# print("DCAVDIFF NaNs match VEL mask?", np.array_equal(np.isnan(DCAVDIFF), m.mask))
+	# print("Any DCAVDIFF NaN?", np.any(np.isnan(DCAVDIFF)))
+	# print("_FILL_VALUES['int16'] =", _FILL_VALUES["int16"])
 
 
 	encoding = {
 		"dtype": "int16",
 		"_FillValue": _FILL_VALUES["int16"],
-		"scale_factor": 0.01,
-		"add_offset": 0.0
+		"scale_factor": np.float32(0.01),
+		"add_offset": np.float32(0.0)
 	}
 
 	m.addDataField(
@@ -98,4 +96,5 @@ def addFields(m: moments, s: spectra) -> None:
 		}
 	)
 
-	m.load(["DCAVEL", "DCAVDIFF"])
+	if not delayed:
+		m.load(["DCAVEL", "DCAVDIFF"])
