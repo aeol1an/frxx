@@ -1,5 +1,5 @@
 from typing import Tuple, List, Any, Annotated
-
+import importlib
 import re
 
 AvgStrat = Annotated[Tuple[int, int] | None, "None if no averaging, or a Tuple of (K_r, K_az)"]
@@ -88,3 +88,31 @@ def matchFourierSpec(candidates: List[str], toMatch: str) -> str | None:
 		if parsed == target:
 			return c
 	return None
+
+
+def funcToStr(func):
+	return f"{func.__module__}.{func.__qualname__}"
+
+def strToFunc(path):
+	modulePath, *attrs = path.split(".")
+	obj = importlib.import_module(modulePath)
+	for attr in attrs:
+		try:
+			obj = importlib.import_module(f"{obj.__name__}.{attr}")
+		except ImportError:
+			obj = getattr(obj, attr)
+	if not callable(obj):
+		raise TypeError(f"'{path}' resolved to {type(obj).__name__}, not a callable")
+	return obj
+
+def changeFilenameToType(filename: str, dtype: str):
+	if dtype not in ["moments", "spectra", "IQ"]:
+		raise ValueError("dtype invalid.")
+	
+	if dtype == "IQ":
+		return "frxxIQ" + filename.split(".", 1)[1]
+	elif dtype == "moments":
+		return "cfrad" + filename.split(".", 1)[1]
+	else:
+		return "frxxS" + filename.split(".", 1)[1]
+	

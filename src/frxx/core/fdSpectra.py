@@ -259,7 +259,7 @@ class spectra(frxxData):
 		self._addDataVarToList(name)
 
 	def constructFilename(self) -> str:
-		return super()._constructFilename("frxxS")
+		return super()._constructFilename("frxxSP")
 	
 	def checkRequiredFields(self):
 		super()._checkRequiredFields()

@@ -822,3 +822,6 @@ class frxxData(ABC):
 		if (len(self.ds["pol"]) != 2):
 			raise ValueError("Vertical channel iq only availible for dual-pol data.")
 		return self.ds["noise"].values[1]
+	
+	def __getitiem__(self, name):
+		return getattr(self, name)

@@ -1,6 +1,16 @@
 from typing import Optional
 from pathlib import Path
+from os.path import relpath
 import platform
+
+def normPath(path: str | Path, basePath: str | Path | None = None) -> Path:
+	if basePath is None:
+		basePath = Path.cwd()
+	basePath = Path(basePath).resolve()
+	fullPath = (basePath / path).resolve()
+	if not fullPath.exists():
+		raise FileNotFoundError(f"Path does not exist: {fullPath}")
+	return Path(relpath(fullPath, basePath))
 
 def validatePath(path: str | Path, mustBeDir: bool = False) -> Path | None:
 	p = Path(path)
@@ -11,7 +21,7 @@ def validatePath(path: str | Path, mustBeDir: bool = False) -> Path | None:
 	if mustBeDir and not p.is_dir():
 		return None
 	
-	return p.resolve()
+	return normPath(p)
 
 
 def globPath(pattern: str | Path) -> list[Path]:
@@ -24,7 +34,7 @@ def globPath(pattern: str | Path) -> list[Path]:
 	if verifiedDir is None:
 		return []
 	
-	return sorted(match.resolve() for match in verifiedDir.glob(globPattern))
+	return sorted(normPath(match) for match in verifiedDir.glob(globPattern))
 
 def getPlatform() -> str:
 	system = platform.system()
