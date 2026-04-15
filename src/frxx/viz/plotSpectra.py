@@ -58,7 +58,7 @@ def plotRangeDoppler(
     axFrac = 0.75
     start = (1-axFrac)/2
     ax = fig.add_axes((start, start, axFrac, start+axFrac))
-    
+
     plot = ax.pcolormesh(
         velMS, rangesKM, data, 
         cmap=cmap, vmin=vmin, vmax=vmax
@@ -68,6 +68,11 @@ def plotRangeDoppler(
     ax.set_ylabel('Range (km)', size=4*lm, labelpad=0)
     ax.tick_params(axis='both', labelsize=4*lm, length=2, direction='in', pad=1)
     
+    xl, xr = ax.get_xlim()
+    cbarBuffer = 0.125
+    xr += (xr-xl)*cbarBuffer
+    ax.set_xlim((xl, xr))
+
     ax2 = ax.twinx()
     rTicks = np.array(ax.get_yticks(), dtype=np.float64)
     
@@ -102,7 +107,7 @@ def plotRangeDoppler(
     
     textBorderWidth = 0.5*lm
     
-    cbarAx = inset_axes(ax, width=2.5*axFrac*0.1*lm, height=aspectRatio*width*0.83*(start+axFrac), loc='center right', borderpad=0.3)
+    cbarAx = ax.inset_axes(bounds=(0.875, 0.075, 0.1, 0.85))
     cb = fig.colorbar(
         plot,
         cax = cbarAx,
