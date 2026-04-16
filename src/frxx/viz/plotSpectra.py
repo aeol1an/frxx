@@ -14,7 +14,7 @@ from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as pe
 
-from ..misc.coordConvert import beamHeightWithRadarHeight
+from ..utils.coordConvert import beamHeightWithRadarHeight
 
 cacheKey = None
 cachedHt = None
