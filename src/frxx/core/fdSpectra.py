@@ -284,12 +284,12 @@ class spectra(frxxData):
 		attrs = ["fourier_spec"]
 		self.requiredBools["fourier_spec"] = self._checkAttrs(attrs)
 
-	def load(self, vars: List[str] | None = None):
+	def load(self, vars: List[str] | None = None, dontLoadMask: bool = False):
 		if vars is None:
 			vars = self.dataVars
 		vars = cast(List[str], vars)
 
-		if "mask" not in vars:
+		if ("mask" not in vars) and (not dontLoadMask):
 			vars = ["mask"] + vars 
 
 		super().load(vars)
