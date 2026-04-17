@@ -55,7 +55,7 @@ class spectra(frxxData):
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
 			self.dataVars = json.loads(self.ds.attrs["data_vars"])
-			self.ds["mask"].data = self.ds["mask"].data
+			self.ds["mask"].data = self.ds["mask"].data.persist()
 			
 		self._dataCache = {}
 
@@ -214,7 +214,6 @@ class spectra(frxxData):
 			}
 		)
 
-		self._addDataVarToList("mask")
 		self.requiredBools["mask"] = True
 
 
@@ -289,9 +288,13 @@ class spectra(frxxData):
 		if vars is None:
 			vars = self.dataVars
 		vars = cast(List[str], vars)
+
+		if "mask" not in vars:
+			vars = ["mask"] + vars 
+
 		super().load(vars)
 
-		if "mask" in vars:
+		if "mask" in vars[1:]:
 			vars.remove("mask")
 			vars = ["mask"] + vars
 
@@ -303,7 +306,7 @@ class spectra(frxxData):
 			if var != "mask":
 				self._dataCache[f"m_{var}"] = \
 					[da.where(self.mask[i], self._dataCache[var][i], np.nan) 
-	  				for i in range(len(bnds))]
+					for i in range(len(bnds))]
 
 	def loadRay(self, index: int, vars: List[str] | None = None):
 		if vars is None:

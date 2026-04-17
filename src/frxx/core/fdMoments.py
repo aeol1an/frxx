@@ -1,6 +1,8 @@
 import numpy as np
 import xarray as xr
 
+import dask as d
+
 from typing import List, Union, Sequence
 from numpy.typing import NDArray
 
@@ -45,7 +47,7 @@ class moments(frxxData):
 			if not valid:
 				raise RuntimeError("Invalid format. See above.")
 			self.dataVars = json.loads(self.ds.attrs["data_vars"])
-			self.ds["mask"].data = self.ds["mask"].data
+			self.ds["mask"].data = self.ds["mask"].data.persist()
 
 	def setBeamSpec(self, angleSpacingDeg: float, beamOverlapDeg: float):
 		if angleSpacingDeg <= 0 or beamOverlapDeg < 0:
@@ -115,7 +117,6 @@ class moments(frxxData):
 			}
 		)
 		
-		self._addDataVarToList("mask")
 		self.requiredBools["mask"] = True
 
 	def addDataField(self, name: str, data: NDArray, attrs, encoding):
