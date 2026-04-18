@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 import numpy as np
 from ...utils import numbaWindows as wn
 
-from numba import njit, prange
+from numba import njit
 
 import dask as d
 import dask.array as da
@@ -89,10 +89,13 @@ def processRays(
 			K, KOffset, avgStrat, shapeOnly=True
 		)[2] for az in range(naz)
 	]
+	def _processRay_precompute(iq, *args):
+		iqh, iqv = d.compute(*iq, scheduler='synchronous') #type: ignore
+		return _processRay(iqh, iqv, *args)
 
 	rays = [
-		d.delayed(_processRay)( #type: ignore
-			iqh, iqv, pulseBoundaries, azIncreasing,
+		d.delayed(_processRay_precompute, traverse=False)( #type: ignore
+			(iqh, iqv), pulseBoundaries, azIncreasing,
 			az, naz, iranges, window,
 			swathPulses, nBootstraps, K, KOffset, avgStrat, NFT,
 			noisehDB, noisevDB, SNRHThreshold, SNRVThreshold

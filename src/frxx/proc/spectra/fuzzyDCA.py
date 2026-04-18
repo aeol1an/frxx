@@ -13,7 +13,6 @@ import numpy as np
 import dask as d
 import dask.array as da
 
-import time as timel
 
 def processRays(
 	PSDH: List[NDArray], 
@@ -25,9 +24,13 @@ def processRays(
 	nr = PSDH[0].shape[0]
 	t = PSDH[0].dtype
 
+	def processRay_S_precompute(vars, pts, filterStrength):
+		PSDH, sZDR, sRHOHV = d.compute(*vars, scheduler='synchronous')  #type: ignore
+		return DCA.processRay_S(PSDH, sZDR, sRHOHV, pts, filterStrength)
+
 	rays = [
-		d.delayed(DCA.processRay_S)( #type: ignore
-			PSDH[az], sZDR[az], sRHOHV[az], np.int64(pts), t.type(filterStrength)
+		d.delayed(processRay_S_precompute, traverse=False)( #type: ignore
+			(PSDH[az], sZDR[az], sRHOHV[az]), np.int64(pts), t.type(filterStrength)
 		)
 		for az in range(naz)
 	]
@@ -49,8 +52,8 @@ def processRays(
 
 def addFields(s: spectra, pts: int = 9, filterStrength: float = 8.0, delayed = True) -> None:
 	sZDRv, sRHOHVv, Arain, Anrain, PSDHF = processRays(
-		s.m_PSDH,
-		s.m_sZDR, s.m_sRHOHV,
+		s.PSDH,
+		s.sZDR, s.sRHOHV,
 		s.vlens,
 		pts, filterStrength
 	)
