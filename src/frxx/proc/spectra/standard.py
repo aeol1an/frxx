@@ -18,6 +18,8 @@ import dask.array as da
 
 import warnings
 
+import threading
+
 @njit(
 	'Tuple((float64[:,::1], float64[:,::1], float64[:,::1], float64[:,::1], boolean[:,::1]))'
 	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, int64, '
@@ -89,7 +91,13 @@ def processRays(
 			K, KOffset, avgStrat, shapeOnly=True
 		)[2] for az in range(naz)
 	]
+
+	call_count = 0
+	
 	def _processRay_precompute(iq, *args):
+		nonlocal call_count
+		call_count += 1
+		print(f"[{threading.current_thread().name}] _processRay call #{call_count}", flush=True)
 		iqh, iqv = d.compute(*iq, scheduler='synchronous') #type: ignore
 		return _processRay(iqh, iqv, *args)
 
