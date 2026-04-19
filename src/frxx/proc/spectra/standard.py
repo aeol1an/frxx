@@ -97,13 +97,13 @@ def processRays(
 	def _processRay_precompute(iq, *args):
 		nonlocal call_count
 		call_count += 1
-		print(f"[{threading.current_thread().name}] _processRay call #{call_count}", flush=True)
+		print(f"[{threading.current_thread().name}] _processRay call #{call_count}\n", end="", flush=True)
 		iqh, iqv = d.compute(*iq, scheduler='synchronous') #type: ignore
 		return _processRay(iqh, iqv, *args)
 
 	rays = [
-		d.delayed(_processRay_precompute, traverse=False)( #type: ignore
-			(iqh, iqv), pulseBoundaries, azIncreasing,
+		d.delayed(_processRay)( #type: ignore
+			iqh, iqv, pulseBoundaries, azIncreasing,
 			az, naz, iranges, window,
 			swathPulses, nBootstraps, K, KOffset, avgStrat, NFT,
 			noisehDB, noisevDB, SNRHThreshold, SNRVThreshold

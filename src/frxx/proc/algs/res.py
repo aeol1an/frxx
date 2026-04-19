@@ -3,7 +3,7 @@ import numpy as np
 from typing import Tuple
 from numpy.typing import NDArray
 
-from numba import njit, prange
+from numba import njit
 from ...utils.numbaHelpers import unwrap_i64
 
 def averageAlongRange(data: NDArray, gstep: int) -> NDArray:
@@ -37,7 +37,7 @@ def averageAlongRange(data: NDArray, gstep: int) -> NDArray:
 def _rangeSubsetIQ(iq, result, K, Koffset, NR, startRange, fp, lp):
 	ng, _ = iq.shape
 	
-	for r in prange(NR):
+	for r in range(NR):
 		iK = np.arange(0, K, 1) + (r)*K
 		r_set_idx = np.arange(0, K, 1)+r-(K//2-Koffset)+startRange
 		r_set_idx[r_set_idx < 0] = 0
@@ -53,7 +53,7 @@ def _rangeSubsetIQ(iq, result, K, Koffset, NR, startRange, fp, lp):
 )
 def _azSubsetIQ(iq, result, NR, startRange, fps, lps):
 	naz = len(fps)
-	for r in prange(NR):
+	for r in range(NR):
 		for az in range(naz):
 			fp = fps[az]
 			lp = lps[az]

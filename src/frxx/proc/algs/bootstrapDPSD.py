@@ -92,7 +92,7 @@ def _computeSingleSpectrum(VH, VV, w, M, NFT, B, r):
     SXi = np.empty(NFT, dtype=np.complex128)
 
     half = NFT // 2
-    for j in prange(NFT):
+    for j in range(NFT):
         sh = np.float64(0.0)
         sv = np.float64(0.0)
         sx = np.complex128(0)
