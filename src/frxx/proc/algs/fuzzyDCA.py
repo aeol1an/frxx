@@ -3,7 +3,7 @@ import numpy as np
 from typing import Tuple
 from numpy.typing import NDArray
 
-from numba import njit
+from numba import njit, prange
 from ...utils.numbaHelpers import \
 	get_masked_float2d, \
 	set_masked_float2d_scalar, set_masked_float2d_array, \
@@ -20,7 +20,7 @@ from ...utils.freqResolution import velocityAxis
 def calcVariance(field: NDArray, pts: int = 9):
 	nr, nv = field.shape
 	fieldResult = np.empty(field.shape, dtype=field.dtype)
-	for idx in range(nv):
+	for idx in prange(nv):
 		lowval = idx - (pts//2)
 		highval = idx + (pts//2 if pts%2 == 0 else pts//2+1)
 		if lowval < 0:
@@ -187,7 +187,7 @@ def processRay_M(PSDHFdb, PSDHdb, vACF, va, flipVel):
 	#upcast to float64
 	PSDHF = np.empty(PSDHFdb.shape, dtype=np.float64)
 	PSDH = np.empty(PSDHFdb.shape, dtype=np.float64)
-	for i in range(PSDHFdb.shape[0]):
+	for i in prange(PSDHFdb.shape[0]):
 		for j in range(PSDHFdb.shape[1]):
 			PSDHF[i, j] = 10.0 ** (np.float64(PSDHFdb[i, j]) / 10.0)
 			PSDH[i, j] = 10.0 ** (np.float64(PSDHdb[i, j]) / 10.0)
@@ -196,7 +196,7 @@ def processRay_M(PSDHFdb, PSDHdb, vACF, va, flipVel):
 
 	vDCA = np.empty((nr,), dtype=t)
 	correction = np.empty((nr,), dtype=t)
-	for r in range(nr):
+	for r in prange(nr):
 		#find vDCA
 		if np.isnan(PSDHF[r]).all() or np.isnan(vACF[r]):
 			vDCA[r] = np.nan

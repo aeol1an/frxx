@@ -286,15 +286,12 @@ class spectra(frxxData):
 
 	def load(self, vars: List[str] | None = None, dontLoadMask: bool = False):
 		if vars is None:
-			vars = self.dataVars
+			vars = self.dataVars + ["mask"]
 		vars = cast(List[str], vars)
-
-		if ("mask" not in vars) and (not dontLoadMask):
-			vars = ["mask"] + vars 
 
 		super().load(vars)
 
-		if "mask" in vars[1:]:
+		if "mask" in vars:
 			vars.remove("mask")
 			vars = ["mask"] + vars
 

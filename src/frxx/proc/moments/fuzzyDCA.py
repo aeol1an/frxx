@@ -41,13 +41,13 @@ def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 	naz = len(PSDHF)
 	nr = len(VEL[0])
 
-	def processRay_M_precompute(vars, nr, va, flipVel):
-		PSDHF, PSDH, VEL = d.compute(*vars, scheduler='synchronous') #type: ignore
+	def processRay_M_precompute(vars, VEL, va, flipVel):
+		PSDHF, PSDH = tuple(vars[n*nr:(n+1)*nr] for n in range(2))
 		return DCA.processRay_M(PSDHF, PSDH, VEL, va, flipVel)
 
 	rays = [
-		d.delayed(processRay_M_precompute, traverse=False)( #type: ignore
-			(PSDHF[az], PSDH[az], VEL[az]), va, flipVel
+		d.delayed(processRay_M_precompute, nout=2)( #type: ignore
+			da.concatenate((PSDHF[az], PSDH[az]), axis=0), VEL[az], va, flipVel
 		)
 		for az in range(naz)
 	]

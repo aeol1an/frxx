@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit
+from numba import njit, prange
 
 @njit('complex128[:](complex64[:,:], complex64[:,:], int32)', nogil=True, parallel=True, cache=True)
 def computeRay_M(X1, X2, lag=0):
@@ -9,20 +9,20 @@ def computeRay_M(X1, X2, lag=0):
 	result = np.empty(nr, dtype=np.complex128)
 
 	if lag == 0:
-		for i in range(nr):
+		for i in prange(nr):
 			acc = np.complex128(0)
 			for j in range(nt):
 				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j]))
 			result[i] = acc / nt
 	elif lag > 0:
-		for i in range(nr):
+		for i in prange(nr):
 			acc = np.complex128(0)
 			for j in range(nt - lag):
 				acc += np.complex128(X1[i, j + lag]) * np.conj(np.complex128(X2[i, j]))
 			result[i] = acc / nt
 	else:
 		neg_lag = -lag
-		for i in range(nr):
+		for i in prange(nr):
 			acc = np.complex128(0)
 			for j in range(nt + lag):
 				acc += np.complex128(X1[i, j]) * np.conj(np.complex128(X2[i, j + neg_lag]))

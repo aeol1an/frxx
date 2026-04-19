@@ -731,10 +731,7 @@ class frxxData(ABC):
 	
 	def load(self, vars: List[str] | None = None, dontLoadMask: bool = False):
 		if vars is None:
-			vars = self.dataVars
-
-		if ("mask" not in vars) and ("mask" in self.ds) and (not dontLoadMask):
-			vars = ["mask"] + vars 
+			vars = self.dataVars + ["mask"]
 
 		invalid = [v for v in vars if v not in self.dataVars + ["mask"]]
 		if invalid:

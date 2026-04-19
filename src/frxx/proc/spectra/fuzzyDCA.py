@@ -25,12 +25,13 @@ def processRays(
 	t = PSDH[0].dtype
 
 	def processRay_S_precompute(vars, pts, filterStrength):
-		PSDH, sZDR, sRHOHV = d.compute(*vars, scheduler='synchronous')  #type: ignore
+		PSDH, sZDR, sRHOHV = tuple(vars[n*nr:(n+1)*nr] for n in range(3))
 		return DCA.processRay_S(PSDH, sZDR, sRHOHV, pts, filterStrength)
 
+
 	rays = [
-		d.delayed(processRay_S_precompute, traverse=False)( #type: ignore
-			(PSDH[az], sZDR[az], sRHOHV[az]), np.int64(pts), t.type(filterStrength)
+		d.delayed(processRay_S_precompute, nout=5)( #type: ignore
+			da.concatenate((PSDH[az], sZDR[az], sRHOHV[az]), axis=0), np.int64(pts), t.type(filterStrength)
 		)
 		for az in range(naz)
 	]
