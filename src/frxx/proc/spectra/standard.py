@@ -20,12 +20,6 @@ import warnings
 
 import threading
 
-@njit(
-	'Tuple((float64[:,::1], float64[:,::1], float64[:,::1], float64[:,::1], boolean[:,::1]))'
-	'(complex64[:,:], complex64[:,:], int64[:,:], boolean, int64, int64, '
-	'int64[:], int64, int64, int64, int64, int64, int64, int64, float64, float64, float64, float64)',
-	cache=True, nogil=True
-)
 def _processRay(
 	iqh, iqv, 
 	pulseBoundaries, azIncreasing, 
@@ -61,6 +55,7 @@ def _processRay(
 		raise ValueError("Bad window selection.")
 
 	h, v, d, r = algs.bootstrapDPSD.processRay_S(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+
 	m = ((h-noisehDB) > SNRHThreshold) & \
 		((v-noisevDB) > SNRVThreshold) & \
 		~np.isnan(h) & \
@@ -97,7 +92,7 @@ def processRays(
 	def _processRay_precompute(iqh, iqv, *args):
 		nonlocal call_count
 		call_count += 1
-		print(f"[{threading.current_thread().name}] _processRay call #{call_count}\n", end="", flush=True)
+		#print(f"[{threading.current_thread().name}] _processRay call #{call_count}\n", end="", flush=True)
 		#iqh, iqv = d.compute(*iq, scheduler='synchronous') #type: ignore
 		return _processRay(iqh, iqv, *args)
 

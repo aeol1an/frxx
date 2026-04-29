@@ -736,7 +736,7 @@ class frxxData(ABC):
 		invalid = [v for v in vars if v not in self.dataVars + ["mask"]]
 		if invalid:
 			raise ValueError(f"Variables not in dataset: {invalid}")
-		
+
 		self.ds.update(self.ds[vars].load()) #type: ignore
 
 	@property
