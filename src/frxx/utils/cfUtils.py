@@ -74,8 +74,8 @@ def cfConcat(ds1: xr.Dataset, ds2: xr.Dataset, newSweep: bool = False) -> xr.Dat
 		merged["sweep_start_ray_index"].values[endSweep] = -1
 		merged["sweep_end_ray_index"].values[mergedSweep:endSweep] = merged["sweep_end_ray_index"].values[mergedSweep+1:endSweep+1]
 		merged["sweep_end_ray_index"].values[endSweep] = -1
-		merged["sweep_numer"].values[mergedSweep:endSweep] -= 1
-		merged["sweep_numer"].values[endSweep] = -1
+		merged["sweep_number"].values[mergedSweep:endSweep] -= 1
+		merged["sweep_number"].values[endSweep] = -1
 
 		merged = merged.isel(sweep=slice(0, endSweep))
 	
