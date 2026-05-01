@@ -30,8 +30,8 @@ def processRays(
 
 
 	rays = [
-		d.delayed(processRay_S_precompute, nout=5)( #type: ignore
-			da.concatenate((PSDH[az], sZDR[az], sRHOHV[az]), axis=0), np.int64(pts), t.type(filterStrength)
+		d.delayed(processRay_S_precompute, pure = True)( #type: ignore
+			da.concatenate((PSDH[az], sZDR[az], sRHOHV[az]), axis=0), np.int64(pts), t.type(filterStrength), dask_key_name=f"dca_{az}"
 		)
 		for az in range(naz)
 	]
