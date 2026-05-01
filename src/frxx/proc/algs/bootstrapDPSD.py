@@ -434,7 +434,15 @@ def processRay_S_torch(
 
     return psdh_db, psdv_db, szdr_db, rhohv
 
-if BACKEND == Backend.NUMBA:
-    processRay_S = processRay_S_numba
-else:
-    processRay_S = processRay_S_torch
+def processRay_S(
+    iqh: np.ndarray,          # (NK, M) complex64
+    iqv: np.ndarray,          # (NK, M) complex64
+    window: np.ndarray,       # (M,)
+    nBootstraps: int,
+    K: int = 1,
+    NFT: int = 1
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    if BACKEND == Backend.NUMBA:
+        return processRay_S_numba(iqh, iqv, window, nBootstraps, K, NFT)
+    else:
+        return processRay_S_torch(iqh, iqv, window, nBootstraps, K, NFT)
