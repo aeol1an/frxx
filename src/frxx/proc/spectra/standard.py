@@ -97,11 +97,11 @@ def processRays(
 		return _processRay(iqh, iqv, *args)
 
 	rays = [
-		d.delayed(_processRay_precompute, pure=True)( #type: ignore
+		d.delayed(_processRay_precompute)( #type: ignore
 			iqh, iqv, pulseBoundaries, azIncreasing,
 			az, naz, iranges, window,
 			swathPulses, nBootstraps, K, KOffset, avgStrat, NFT,
-			noisehDB, noisevDB, SNRHThreshold, SNRVThreshold, dask_key_name=f"{az}"
+			noisehDB, noisevDB, SNRHThreshold, SNRVThreshold
 		)
 		for az in range(naz)
 	]
@@ -111,7 +111,7 @@ def processRays(
 		dt = np.float32 if product != 4 else np.bool_
 		chunks = [
 			da.from_delayed(
-				rays[az][product].astype(dt), #type: ignore
+				rays[az][product].astype(dt, pure=True), #type: ignore
 				shape=(nr, nf[az]),
 				dtype=dt,
 			)

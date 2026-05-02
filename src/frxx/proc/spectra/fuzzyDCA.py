@@ -28,10 +28,19 @@ def processRays(
 		PSDH, sZDR, sRHOHV = tuple(vars[n*nr:(n+1)*nr] for n in range(3))
 		return DCA.processRay_S(PSDH, sZDR, sRHOHV, pts, filterStrength)
 
+	def to_single_delayed(dask_arr):
+		block_grid = dask_arr.to_delayed(optimize_graph=False).tolist()
+		def assemble(block_grid):
+			rows = [
+				np.concatenate(row, axis=1)
+				for row in block_grid
+			]
+			return np.concatenate(rows, axis=0)
+		return d.delayed(assemble)(block_grid) #type: ignore
 
 	rays = [
-		d.delayed(processRay_S_precompute, pure = True)( #type: ignore
-			da.concatenate((PSDH[az], sZDR[az], sRHOHV[az]), axis=0), np.int64(pts), t.type(filterStrength), dask_key_name=f"dca_{az}"
+		d.delayed(DCA.processRay_S)( #type: ignore
+			*[to_single_delayed(arr) for arr in (PSDH[az], sZDR[az], sRHOHV[az])], np.int64(pts), t.type(filterStrength)
 		)
 		for az in range(naz)
 	]
