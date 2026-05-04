@@ -346,9 +346,18 @@ def processRay_S_torch(
             indices = boot_idx.unsqueeze(2) + offsets.unsqueeze(0).unsqueeze(0)
             indices_flat = indices.reshape(NK, batch_size * M)
 
-            # Gather blocks: (NK, batch_size, M)
-            blockH = torch.gather(XH, 1, indices_flat).reshape(NK, batch_size, M)
-            blockV = torch.gather(XV, 1, indices_flat).reshape(NK, batch_size, M)
+            def gather_complex(x, dim, index):
+                if x.is_complex() and x.device.type == "mps":
+                    real = torch.gather(x.real, dim, index)
+                    imag = torch.gather(x.imag, dim, index)
+                    return torch.complex(real, imag)
+                else:
+                    return torch.gather(x, dim, index)
+
+
+            blockH = gather_complex(XH, 1, indices_flat).reshape(NK, batch_size, M)
+            blockV = gather_complex(XV, 1, indices_flat).reshape(NK, batch_size, M)
+
             del indices, indices_flat, boot_idx  # free before FFT
 
             # Compute R0 of each bootstrap block: (NK, batch_size)
