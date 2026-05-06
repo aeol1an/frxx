@@ -24,7 +24,7 @@ _FILL_VALUES = {
 	"int64": None,
 	"float32": np.float32(np.nan),
 	"float64": np.float64(np.nan),
-	"|S1": b' '
+	#"|S1": b' '
 }
 
 class frxxData(ABC):
@@ -138,34 +138,36 @@ class frxxData(ABC):
 		self.ds.attrs["time_coverage_end"] = volEndTimeStr.replace('+00:00', 'Z')
 		self.ds.attrs["end_datetime"] = volEndTimeStr
 		
-		paddedStartTime = volStartTimeStr.replace('+00:00', 'Z') +\
-			(len(self.ds["string_length_32"]) - len(volStartTimeStr.replace('+00:00', 'Z')))*' '
-		paddedEndTime = volEndTimeStr.replace('+00:00', 'Z') +\
-			(len(self.ds["string_length_32"])- len(volEndTimeStr.replace('+00:00', 'Z')))*' '
+		paddedStartTime = volStartTimeStr.replace('+00:00', 'Z').encode('ascii') +\
+			(len(self.ds["string_length_32"]) - len(volStartTimeStr.replace('+00:00', 'Z')))*b' '
+		paddedEndTime = volEndTimeStr.replace('+00:00', 'Z').encode('ascii') +\
+			(len(self.ds["string_length_32"])- len(volEndTimeStr.replace('+00:00', 'Z')))*b' '
 		
 		self.ds["time_coverage_start"] = xr.DataArray(
-			data = np.array([c for c in paddedStartTime], dtype="|S1"),
-			dims = ["string_length_32"],
+			data = paddedStartTime,
+			dims = [],
 			attrs = {
 				"standard_name": "data_volume_start_time_utc",
 				"comment": "ray times are relative to start time in secs",
 			}
 		)
 		self.ds["time_coverage_start"].encoding = {
-			"dtype": "|S1",
-			"_FillValue": b' ',
+			"dtype": "S1",
+			"char_dim_name": "string_length_32",
+			"_Encoding": "ascii"
 		}
 		self.ds["time_coverage_end"] = xr.DataArray(
-			data = np.array([c for c in paddedEndTime], dtype="|S1"),
-			dims = ["string_length_32"],
+			data = paddedEndTime,
+			dims = [],
 			attrs = {
 				"standard_name": "data_volume_end_time_utc",
 				"comment": "ray times are relative to start time in secondss",
 			},
 		)
 		self.ds["time_coverage_end"].encoding = {
-			"dtype": "|S1",
-			"_FillValue": b' ',
+			"dtype": "S1",
+			"char_dim_name": "string_length_32",
+			"_Encoding": "ascii"
 		}
 		
 		self.ds = self.ds.assign_coords(time=timeVar)
@@ -191,28 +193,30 @@ class frxxData(ABC):
 		self.ds.attrs["end_datetime"] = other.ds.attrs["end_datetime"]
 
 		self.ds["time_coverage_start"] = xr.DataArray(
-			data = other.ds["time_coverage_start"].values,
-			dims = ["string_length_32"],
+			data = other.ds["time_coverage_start"].values.tobytes(),
+			dims = [],
 			attrs = {
 				"standard_name": "data_volume_start_time_utc",
 				"comment": "ray times are relative to start time in secs",
 			}
 		)
 		self.ds["time_coverage_start"].encoding = {
-			"dtype": "|S1",
-			"_FillValue": b' ',
+			"dtype": "S1",
+			"char_dim_name": "string_length_32",
+			"_Encoding": "ascii"
 		}
 		self.ds["time_coverage_end"] = xr.DataArray(
-			data = other.ds["time_coverage_end"].values,
-			dims = ["string_length_32"],
+			data = other.ds["time_coverage_start"].values.tobytes(),
+			dims = [],
 			attrs = {
 				"standard_name": "data_volume_end_time_utc",
 				"comment": "ray times are relative to start time in secondss",
 			},
 		)
-		self.ds["time_coverage_end"].encoding = {
-			"dtype": "|S1",
-			"_FillValue": b' ',
+		self.ds["time_coverage_end"].encoding  = {
+			"dtype": "S1",
+			"char_dim_name": "string_length_32",
+			"_Encoding": "ascii"
 		}
 
 		self.ds = self.ds.assign_coords(time=newTimeArr)
@@ -350,23 +354,23 @@ class frxxData(ABC):
 			if targetAngle < 0 or targetAngle > 90:
 				raise ValueError("Radar dish shouldn't be pointing into "
 									"the floor or greater than vertical.")
-			mode_str = 'azimuth_surveillance'
-			mode_str += (len(self.ds["string_length_32"])- len(mode_str))*' '
-			mode_str = np.array([[c for c in mode_str]], dtype='|S1')
+			mode_str = b'azimuth_surveillance'
+			mode_str += (len(self.ds["string_length_32"])- len(mode_str))*b' '
 			fixed_angle_units = "elevation degrees"
 		else:
 			raise ValueError("Sorry, only ppi mode supported for now.")
 		
 		self.ds["sweep_mode"] = xr.DataArray(
-			data = mode_str,
-			dims = ["sweep", "string_length_32"],
+			data = [mode_str],
+			dims = ["sweep"],
 			attrs = {
 				"long_name": "scan_mode_for_sweep"
 			}
 		)
 		self.ds["sweep_mode"].encoding = {
-			"dtype": '|S1',
-			"_FillValue": _FILL_VALUES["|S1"]
+			"dtype": "S1",
+			"char_dim_name": "string_length_32",
+			"_Encoding": "ascii"
 		}
 
 		self.ds["fixed_angle"] = xr.DataArray(
