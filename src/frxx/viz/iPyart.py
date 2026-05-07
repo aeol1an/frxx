@@ -1,4 +1,3 @@
-import pyart
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -52,6 +51,7 @@ def enableKeyboardShortcuts():
     plt.rcParams['keymap.forward'].append('right')
 
 class iPyart:
+    #import pyart
     def __init__(self, cfradDir, startFilenum):
         if matplotlib.get_backend().lower() != 'tkagg':
             raise RuntimeError("Cannot run interactive display with current backend. "

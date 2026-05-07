@@ -7,8 +7,6 @@ Number = Union[int, float]
 import numpy as np
 import numpy.typing as npt
 
-import pyart
-
 from matplotlib.figure import Figure
 from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -33,6 +31,7 @@ def plotPPI(
 	clims: Tuple[Number, Number, int] | None = None,
 	backend: bool = True
 ):
+	import pyart
 	if not (clims is None):
 		vmin, vmax, ticknum = clims
 		ticks = np.linspace(vmin, vmax, ticknum)
@@ -58,7 +57,8 @@ def plotPPI(
 		fig = Figure(figsize=(width, width*aspectRatio), dpi=dpi)
 	ax = fig.add_axes((0, 0, 1, 1))
 	
-	xx, yy, _ = pyart.core.transforms.antenna_vectors_to_cartesian(
+	from pyart.core.transforms import antenna_vectors_to_cartesian
+	xx, yy, _ = antenna_vectors_to_cartesian(
 		ranges=rangesKM,
 		azimuths=azimuths,
 		elevations=[elevation],

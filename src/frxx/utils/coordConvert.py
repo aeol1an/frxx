@@ -1,7 +1,6 @@
 import numpy as np
 import requests
 import time
-from pyart.core import cartesian_to_geographic_aeqd
 
 from numpy.typing import NDArray
 
@@ -59,6 +58,8 @@ def getElevations(
         
 
 def beamHeightWithRadarHeight(rKm, az, el, radarHtM, radarLat, radarLon) -> NDArray:
+    from pyart.core import cartesian_to_geographic_aeqd
+
     radarLocEl = getElevations(np.array([radarLat]), np.array([radarLon]))
     
     theta_e = np.deg2rad(el)

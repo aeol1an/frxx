@@ -7,8 +7,6 @@ Number = Union[int, float]
 import numpy as np
 import numpy.typing as npt
 
-import pyart
-
 from matplotlib.figure import Figure
 from matplotlib.colors import Colormap
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
@@ -31,6 +29,7 @@ def plotRangeDoppler(
     clims: Tuple[Number, Number, int] | None = None,
     backend: bool = True
 ):
+    #import pyart
     if not (clims is None):
         vmin, vmax, ticknum = clims
         ticks = np.linspace(vmin, vmax, ticknum)
