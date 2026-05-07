@@ -4,9 +4,6 @@ from numba import njit, prange
 from typing import Tuple
 from numpy.typing import NDArray
 
-from frxx import BACKEND
-from frxx._backend import Backend
-
 @njit(
     'Tuple((float64[:], float64[:], complex128[:]))'
     '(complex64[:], complex64[:], float64[:], int64, int64, int64, float64)',
@@ -451,6 +448,7 @@ def processRay_S(
     K: int = 1,
     NFT: int = 1
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    from frxx import BACKEND, Backend
     if BACKEND == Backend.NUMBA:
         return processRay_S_numba(iqh, iqv, window, nBootstraps, K, NFT)
     else:

@@ -1,40 +1,51 @@
-import enum
+import threading
+import importlib
+import importlib.util
 
-class Backend(enum.Enum):
-    TORCH_CUDA = "torch_cuda"
-    TORCH_MPS = "torch_mps"
-    NUMBA = "numba"
+from . import Backend
+
+class _LazyModule:
+    def __init__(self, name):
+        self._name = name
+        self._mod = None
+        self._found = importlib.util.find_spec(name) is not None
+        self._event = threading.Event()
+        if self._found:
+            threading.Thread(target=self._bg_load, daemon=True).start()
+        else:
+            self._event.set()
+
+    def _bg_load(self):
+        try:
+            self._mod = importlib.import_module(self._name)
+        except ImportError:
+            self._found = False
+        self._event.set()
+
+    @property
+    def available(self):
+        """Check if the module is available (blocks until load attempt finishes)."""
+        self._event.wait()
+        return self._mod is not None
+
+    def __getattr__(self, attr):
+        self._event.wait()
+        if self._mod is None:
+            raise ImportError(f"No module named '{self._name}'")
+        return getattr(self._mod, attr)
+    
+_torch = _LazyModule("torch")
 
 def detect_backend(prefer: str | None = None):
-    """
-    Determine the best available backend.
-    
-    prefer: None, "numba"
-        - None: use torch+GPU if available, else numba
-        - "numba": force numba regardless of GPU availability
-    """
     if prefer == "numba":
         return Backend.NUMBA
 
-    torch_available = False
-    try:
-        import torch
-        torch_available = True
-    except ImportError:
-        pass
-
-    if not torch_available:
+    if not _torch.available:
         return Backend.NUMBA
 
-    if prefer is None or prefer == "torch":
-        import torch
-
-        if torch.cuda.is_available():
-            return Backend.TORCH_CUDA
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return Backend.TORCH_MPS
-        else:
-            # auto: no GPU, just use numba since it's faster on CPU for loopy code
-            return Backend.NUMBA
-
-    return Backend.NUMBA
+    if _torch.cuda.is_available():
+        return Backend.TORCH_CUDA
+    elif hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available():
+        return Backend.TORCH_MPS
+    else:
+        return Backend.NUMBA

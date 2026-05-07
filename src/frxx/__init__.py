@@ -1,6 +1,14 @@
-from ._backend import detect_backend, Backend
-
+import enum
 import os
+
+class Backend(enum.Enum):
+    TORCH_CUDA = "torch_cuda"
+    TORCH_MPS = "torch_mps"
+    NUMBA = "numba"
+
+from ._backend import detect_backend
+
+from . import core, io, proc, viz, utils
 
 # Detect once at import time
 BACKEND = detect_backend(prefer=os.getenv("FRXX_BACKEND"))
@@ -15,5 +23,3 @@ def set_backend(backend: str):
         BACKEND = Backend.NUMBA
     else:
         BACKEND = detect_backend(prefer=None)
-
-from . import core, io, proc, viz, utils
