@@ -129,6 +129,8 @@ def plotPPI(
 		pe.withStroke(linewidth=textBorderWidth, foreground='white')
 	])
 	fieldTxt.set_zorder(10)
+
+	ax.set_aspect('equal')
 	
 	return fig, ax, plot, cb
 
