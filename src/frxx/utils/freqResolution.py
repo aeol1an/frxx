@@ -25,3 +25,8 @@ def velocityAxis(NFT: int, va: np.floating, flipVel: bool, leftUnfolds = 0, righ
         return np.linspace(-va-(2*leftUnfolds*va), va+(2*rightUnfolds*va), NFT).astype(t)
     else:
         return np.linspace(va+(2*rightUnfolds*va), -va-(2*leftUnfolds*va), NFT).astype(t)
+    
+def velSpanToNumBins(delta_v, nFFT, prf=4000, wavelength=0.0308):
+    bin_width = prf * wavelength / (2.0 * nFFT)   # m/s per bin
+    nBins = int(round(delta_v / bin_width))
+    return max(1, nBins)  # a window should be at least 1 bin wide
