@@ -27,11 +27,12 @@ def plotPPI(
 	dpi: int = 300,
 	xlim: Tuple[Number, Number] | None = None, 
 	yCenter: Number | None = None,
-	cmap: Union[str, Colormap] = 'pyart_Carbone42',
+	cmap: Union[str, Colormap] = 'Carbone42',
 	clims: Tuple[Number, Number, int] | None = None,
 	backend: bool = True
 ):
 	import pyart
+	import cmweather
 	if not (clims is None):
 		vmin, vmax, ticknum = clims
 		ticks = np.linspace(vmin, vmax, ticknum)
@@ -77,7 +78,8 @@ def plotPPI(
 	
 	plot = ax.pcolormesh(
 		xx, yy, data, 
-		cmap=cmap, vmin=vmin, vmax=vmax
+		cmap=cmap, vmin=vmin, vmax=vmax,
+		zorder = 0
 	)
 	ax.set_xlim(xlim)
 	ax.set_ylim(ylim)
@@ -86,13 +88,13 @@ def plotPPI(
 	textBorderWidth = 0.5*lm
 
 	#cbarAx = inset_axes(ax, width=2*0.1*lm, height=aspectRatio*width*0.85, loc='center right', borderpad=0.25)
-	cbarAx = ax.inset_axes(bounds=(0.9, 0.075, 0.075, 0.85))
+	cbarAx = ax.inset_axes(bounds=(0.9, 0.075, 0.075, 0.85), zorder = 100)
 	cb = fig.colorbar(
 		plot,
 		cax = cbarAx,
 		ticks = ticks,
 		extend="both",
-		orientation='vertical'
+		orientation='vertical',
 	)
 	cbarAx.tick_params(labelsize=4*lm, direction='in', length = 2, pad=0)
 	labels = [l for l in cbarAx.get_yticklabels() if l.get_text()]
@@ -132,7 +134,7 @@ def plotPPI(
 
 	ax.set_aspect('equal')
 	
-	return fig, ax, plot, cb
+	return fig, ax, plot, cb, (xx,yy)
 
 def updatePPIAxesText(fig, ax, plot, cb, width, height):
 	scaleRate = 0.5

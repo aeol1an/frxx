@@ -5,17 +5,17 @@ _nCBTicks = 5
 moments = {
 	'DBZ': {
 		'ranges': (0, 75, _nCBTicks),
-		'cmap': 'pyart_Carbone42',
+		'cmap': 'Carbone42',
 		'units': 'dBZ'
 	},
 	'VEL': {
 		'ranges': (-100, 100, _nCBTicks),
-		'cmap': 'pyart_Carbone42',
+		'cmap': 'Carbone42',
 		'units': 'm/s'
 	},
 	'CORVEL': {
 		'ranges': (-100, 100, _nCBTicks),
-		'cmap': 'pyart_Carbone42',
+		'cmap': 'Carbone42',
 		'units': 'm/s'
 	},
 	'ZDR': {

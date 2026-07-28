@@ -25,11 +25,12 @@ def plotRangeDoppler(
     az: Number, el: Number, radarHt: Number, lat: Number, lon: Number,
     width: Number = 2,
     aspectRatioWH: float = np.sqrt(2),
-    cmap: Union[str, Colormap] = 'pyart_Carbone42',
+    cmap: Union[str, Colormap] = 'Carbone42',
     clims: Tuple[Number, Number, int] | None = None,
     backend: bool = True
 ):
     #import pyart
+    import cmweather
     if not (clims is None):
         vmin, vmax, ticknum = clims
         ticks = np.linspace(vmin, vmax, ticknum)

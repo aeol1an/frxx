@@ -28,6 +28,7 @@ dependencies = [
     "xarray",
     "requests",
     "arm_pyart",
+    "cmweather",
     "numba",
     "rocket-fft",
 ]
