@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "frxx"
+name = "frxx-legacy"
 version = "0.1"
 description = "Utils to process and visualize I/Q data from a weather radar."
 readme = "README.md"
