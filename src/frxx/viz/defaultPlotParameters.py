@@ -6,26 +6,31 @@ moments = {
 	'DBZ': {
 		'ranges': (0, 75, _nCBTicks),
 		'cmap': 'Carbone42',
+        'title': 'Equivalent Reflectivity Factor',
 		'units': 'dBZ'
 	},
 	'VEL': {
 		'ranges': (-100, 100, _nCBTicks),
-		'cmap': 'Carbone42',
+		'cmap': 'balance',
+        'title': 'Radial Velocity',
 		'units': 'm/s'
 	},
 	'CORVEL': {
 		'ranges': (-100, 100, _nCBTicks),
-		'cmap': 'Carbone42',
+		'cmap': 'balance',
+        'title': 'Radial Velocity',
 		'units': 'm/s'
 	},
 	'ZDR': {
 		'ranges': (-5, 8, _nCBTicks),
 		'cmap': cmaps.dmap(256),
+        'title': 'Differential Reflectivity',
 		'units': 'dB'
 	},
 	'RHOHV': {
 		'ranges': (0.2, 1.05, _nCBTicks),
 		'cmap': cmaps.rmap(256),
+        'title': 'Correlation Coefficient',
 		'units': ''
 	} 
 }
