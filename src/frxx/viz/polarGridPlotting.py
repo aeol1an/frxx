@@ -2,9 +2,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 from ..utils.coordConvert import cart2polar
 
-def rangeRings(ax, rint = None, xlim = (-30, 30), ylim = (-30, 30), n = 100, lw=1.5):
+def rangeRings(ax, rint = None, xlim = None, ylim = None, n = 100, lw=1.5):
     if ax is None:
         ax = plt.gca()
+
+    if xlim is None:
+        xlim = ax.get_xlim()
+    if ylim is None:
+        ylim = ax.get_ylim()
 
     xmax = max([abs(i) for i in xlim])
     ymax = max([abs(i) for i in ylim])
@@ -31,9 +36,14 @@ def rangeRings(ax, rint = None, xlim = (-30, 30), ylim = (-30, 30), n = 100, lw=
     contour  = ax.contour(xx, yy, rr, rings, colors='k', linewidths=lw)
     ax.clabel(contour, inline=True, fmt='%d km', fontsize=lw*8)
 
-def azimuthSpiderweb(ax, azint = 20, xlim = (-30, 30), ylim = (-30, 30), n = 500, lw=1.5):
+def azimuthSpiderweb(ax, azint = 20, xlim = None, ylim = None, n = 500, lw=1.5):
     if ax is None:
         ax = plt.gca()
+
+    if xlim is None:
+        xlim = ax.get_xlim()
+    if ylim is None:
+        ylim = ax.get_ylim()
 
     xmax = max([abs(i) for i in xlim])
     ymax = max([abs(i) for i in ylim])

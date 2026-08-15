@@ -31,7 +31,6 @@ def plotPPI(
 	clims: Tuple[Number, Number, int] | None = None,
 	backend: bool = True
 ):
-	import pyart
 	import cmweather
 	if not (clims is None):
 		vmin, vmax, ticknum = clims
@@ -118,7 +117,7 @@ def plotPPI(
 	)
 	unitsText._frxxBaseFontSize = 5
 	unitsText.set_path_effects([
-		pe.withStroke(linewidth=textBorderWidth, foreground='white')
+		pe.withStroke(linewidth=textBorderWidth*2, foreground='white')
 	])
 	unitsText.set_zorder(10)
 
@@ -128,7 +127,7 @@ def plotPPI(
 	)
 	fieldTxt._frxxBaseFontSize = 8
 	fieldTxt.set_path_effects([
-		pe.withStroke(linewidth=textBorderWidth, foreground='white')
+		pe.withStroke(linewidth=textBorderWidth*2, foreground='white')
 	])
 	fieldTxt.set_zorder(10)
 
