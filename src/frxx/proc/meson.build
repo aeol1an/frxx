@@ -1,6 +1,5 @@
 python_sources = files(
     '__init__.py',
-    'splashDealias.py'
 )
 
 py.install_sources(

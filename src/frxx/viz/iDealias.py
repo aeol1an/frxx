@@ -1,5 +1,4 @@
 from .iPyart import iPyart
-from ..proc import splashDealias
 import netCDF4
 import numpy as np
 from pathlib import Path
