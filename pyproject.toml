@@ -4,7 +4,7 @@ build-backend = "mesonpy"
 
 [project]
 name = "frxx"
-version = "0.1.2"
+version = "0.1.3"
 description = "Utils to process and visualize I/Q data from a weather radar."
 readme = "README.md"
 requires-python = ">=3.10"
