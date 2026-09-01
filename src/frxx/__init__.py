@@ -8,10 +8,12 @@ class Backend(enum.Enum):
 
 from ._backend import detect_backend
 
+BACKEND = Backend.CPU
+
 from . import core, io, proc, viz, utils
 
-# Detect once at import time
-BACKEND = detect_backend(prefer=os.getenv("FRXX_BACKEND"))
+if os.getenv("FRXX_BACKEND", "").lower() == "torch":
+    BACKEND = detect_backend(prefer="torch")
 
 def get_backend():
     return BACKEND
@@ -23,4 +25,4 @@ def set_backend(backend: str):
     if backend == "cpu":
         BACKEND = Backend.CPU
     else:
-        BACKEND = detect_backend(prefer=None)
+        BACKEND = detect_backend(prefer="torch")
