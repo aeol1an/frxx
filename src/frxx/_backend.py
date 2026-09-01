@@ -37,15 +37,18 @@ class _LazyModule:
 _torch = _LazyModule("torch")
 
 def detect_backend(prefer: str | None = None):
-    if prefer == "numba":
-        return Backend.NUMBA
+    if prefer is not None:
+        prefer = prefer.lower()
+
+    if prefer == "cpu":
+        return Backend.CPU
 
     if not _torch.available:
-        return Backend.NUMBA
+        return Backend.CPU
 
     if _torch.cuda.is_available():
         return Backend.TORCH_CUDA
     elif hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available():
         return Backend.TORCH_MPS
     else:
-        return Backend.NUMBA
+        return Backend.CPU

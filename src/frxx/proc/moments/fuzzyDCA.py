@@ -11,32 +11,6 @@ import numpy as np
 import dask as d
 import dask.array as da
 
-from numba import njit, prange
-from numba.typed import List as ListType
-
-# @njit(
-# 	[
-# 		'Tuple((float32[:,:], float32[:,:]))'
-# 		'(ListType(float32[:,:]), ListType(float32[:,:]), float32[:,:], float32, boolean)',
-
-# 		'Tuple((float64[:,:], float64[:,:]))'
-# 		'(ListType(float64[:,:]), ListType(float64[:,:]), float64[:,:], float64, boolean)',
-# 	],
-# 	cache=True, parallel=True, nogil=True
-# )
-# def _processRaysP(PSDHF, PSDH, VEL, va, flipVel):
-# 	naz = len(PSDHF)
-
-# 	DCAVEL = np.empty(VEL.shape, dtype=VEL.dtype)
-# 	DCAVC = np.empty(VEL.shape, dtype=VEL.dtype)
-
-# 	for az in prange(naz):
-# 		vdca, corr = DCA.processRay_M(PSDHF[az], PSDH[az], VEL[az], va, flipVel)
-# 		DCAVEL[az,:] = vdca
-# 		DCAVC[az,:] = corr
-
-# 	return DCAVEL, DCAVC
-
 def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 	naz = len(PSDHF)
 	nr = len(VEL[0])

@@ -299,7 +299,7 @@ def processRay_S(
     NFT: int = 1
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     from frxx import BACKEND, Backend
-    if BACKEND == Backend.NUMBA:
+    if BACKEND == Backend.CPU:
         return processRay_S_cpp(iqh, iqv, window, nBootstraps, K, NFT)
     else:
         return processRay_S_torch(iqh, iqv, window, nBootstraps, K, NFT)

@@ -4,7 +4,7 @@ import os
 class Backend(enum.Enum):
     TORCH_CUDA = "torch_cuda"
     TORCH_MPS = "torch_mps"
-    NUMBA = "numba"
+    CPU = "cpu"
 
 from ._backend import detect_backend
 
@@ -17,9 +17,10 @@ def get_backend():
     return BACKEND
 def set_backend(backend: str):
     global BACKEND
-    if backend not in ["torch", "numba"]:
-        raise ValueError('Valid backends are "torch" and "numba".')
-    if backend == 'numba':
-        BACKEND = Backend.NUMBA
+    backend = backend.lower()
+    if backend not in ["torch", "cpu"]:
+        raise ValueError('Valid backends are "torch" and "cpu".')
+    if backend == "cpu":
+        BACKEND = Backend.CPU
     else:
         BACKEND = detect_backend(prefer=None)

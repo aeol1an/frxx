@@ -34,8 +34,6 @@ dependencies = [
     "requests",
     "arm_pyart",
     "cmweather",
-    "numba",
-    "rocket-fft",
 ]
 
 [project.scripts]

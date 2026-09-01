@@ -7,8 +7,6 @@ from numpy.typing import NDArray
 import dask as d
 import dask.array as da
 
-from numba.typed import List as ListType
-
 import json
 
 from .frxxData import _FILL_VALUES, frxxData
@@ -132,7 +130,7 @@ class spectra(frxxData):
 		self.requiredBools["SNR_threshold"] = True
 
 	def setMask(self, mask: List[NDArray[np.bool_]], comment: str):
-		if not (isinstance(mask, List) or isinstance(mask, ListType)):
+		if not (isinstance(mask, List)):
 			raise TypeError("Spectra can be jagged so the first dim should be a python list. " \
 							"This functon handles filling with NaNs.")
 		nRays = len(self.ds["time"])
@@ -220,7 +218,7 @@ class spectra(frxxData):
 	def addDataField(self, name: str, data: List[NDArray], attrs, encoding):
 		if not all(self.requiredBools.values()):
 			raise ValueError("Set all spectra object variables.")
-		if not (isinstance(data, List) or isinstance(data, ListType)):
+		if not (isinstance(data, List)):
 			raise TypeError("Spectra can be jagged so the first dim should be a python list. " \
 							"This functon handles filling with NaNs.")
 		nRays = len(self.ds["time"])
