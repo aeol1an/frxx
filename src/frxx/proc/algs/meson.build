@@ -6,6 +6,15 @@ python_sources = files(
     'res.py'
 )
 
+py.extension_module(
+    '_res',
+    'res.cpp',
+    dependencies: [pybind11_dep, frxx_dep],
+    subdir: 'frxx/proc/algs',
+    install: true,
+    install_tag: 'runtime'
+)
+
 py.install_sources(
     python_sources,
     subdir: 'frxx/proc/algs',

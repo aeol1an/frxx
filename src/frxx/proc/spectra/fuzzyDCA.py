@@ -3,8 +3,6 @@ from ...core.frxxData import _FILL_VALUES
 
 from ..algs import fuzzyDCA as DCA
 
-from ...utils.numbaHelpers import toNumbaList
-
 from typing import Tuple, List
 from numpy.typing import NDArray
 

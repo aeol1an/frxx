@@ -16,3 +16,21 @@ py.install_sources(
     subdir: 'frxx/utils',
     install_tag: 'runtime'
 )
+
+utils_extensions = {
+    '_angleSplitter': 'angleSplitter.cpp',
+    '_freqResolution': 'freqResolution.cpp',
+    '_numbaHelpers': 'numbaHelpers.cpp',
+    '_numbaWindows': 'numbaWindows.cpp',
+}
+
+foreach extension_name, extension_source : utils_extensions
+    py.extension_module(
+        extension_name,
+        extension_source,
+        dependencies: [pybind11_dep, frxx_dep],
+        subdir: 'frxx/utils',
+        install: true,
+        install_tag: 'runtime'
+    )
+endforeach

@@ -12,5 +12,9 @@ project(
 py = import('python').find_installation(pure: false)
 pybind11_dep = dependency('pybind11')
 threads_dep = dependency('threads')
+frxx_cpp_inc = include_directories('include')
+frxx_dep = declare_dependency(
+  include_directories: frxx_cpp_inc,
+)
 
 subdir('src')

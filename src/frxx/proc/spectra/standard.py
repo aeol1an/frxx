@@ -11,8 +11,6 @@ from numpy.typing import NDArray
 import numpy as np
 from ...utils import numbaWindows as wn
 
-from numba import njit
-
 import dask as d
 import dask.array as da
 
@@ -30,12 +28,12 @@ def _processRay(
 	noisehDB, noisevDB,
 	SNRHThreshold, SNRVThreshold
 ):
-	iqhs, _, nSAZ = algs.res.subsetIQnumba(
+	iqhs, _, nSAZ = algs.res.subsetIQcpp(
 		iqh, az, naz, azIncreasing, 
 		pulseBoundaries, iranges, swathPulses, 
 		K, KOffset, avgStrat, False
 	)
-	iqvs, _, _ = algs.res.subsetIQnumba(
+	iqvs, _, _ = algs.res.subsetIQcpp(
 		iqv, az, naz, azIncreasing, 
 		pulseBoundaries, iranges, swathPulses, 
 		K, KOffset, avgStrat, False
@@ -80,7 +78,7 @@ def processRays(
 	nr = iqh.shape[0]
 	iranges = np.array([0, nr - 1], dtype=np.int64)
 	nf = [
-		algs.res.subsetIQnumba(
+		algs.res.subsetIQcpp(
 			iqh, az, naz, azIncreasing, 
 			pulseBoundaries, iranges, swathPulses, 
 			K, KOffset, avgStrat, shapeOnly=True
