@@ -17,7 +17,7 @@ ifeq ($(UNAME), Darwin)
 	dot_clean .
 	rm -rf /tmp/${PACKAGE}-build
 	mkdir -p /tmp/${PACKAGE}-build
-	rsync -a --exclude='.*' --exclude='*.egg-info' --exclude='dist' --exclude='build' --exclude='__pycache__' . /tmp/${PACKAGE}-build/
+	rsync -a --filter=':- .gitignore' . /tmp/${PACKAGE}-build/
 	cd /tmp/${PACKAGE}-build && python -m build
 	mkdir -p dist
 	cp /tmp/${PACKAGE}-build/dist/* dist/
