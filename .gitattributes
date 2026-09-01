@@ -1,1 +1,4 @@
 .ipynb linguist-generated
+
+src/include/Eigen/** linguist-vendored
+src/include/pocketfft/** linguist-vendored
