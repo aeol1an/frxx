@@ -44,24 +44,38 @@ else:
 	from ._res import _azSubsetIQ, _rangeSubsetIQ, subsetIQcpp
 
 def averageAlongRange(data: NDArray, gstep: int) -> NDArray:
-	if gstep == 1:
-		return data
-	
-	t, r = (data.shape[0], data.shape[1])
-	fullGroups = r//gstep
-	if fullGroups > 0:
-		mainPart = data[:,:fullGroups*gstep,...]\
-			.reshape((t, fullGroups, gstep, *data.shape[2:])).mean(axis=2)
-	else:
-		mainPart = np.array([]).reshape((t, 0, *data.shape[2:]))
-		
-	if r % gstep != 0:
-		remainder = data[:,fullGroups*gstep:,...].mean(axis=1)
-		result = np.concatenate((mainPart, remainder), axis=1)
-	else:
-		result = mainPart
-		
-	return result
+    if gstep <= 0:
+        raise ValueError("gstep must be positive")
+
+    if gstep == 1:
+        return data
+
+    prefix = data.shape[:-2]
+    time_count, range_count = data.shape[-2:]
+
+    full_groups = range_count // gstep
+    grouped_range_count = full_groups * gstep
+
+    if full_groups > 0:
+        main_part = (
+            data[..., :grouped_range_count]
+            .reshape(*prefix, time_count, full_groups, gstep)
+            .mean(axis=-1)
+        )
+    else:
+        main_part = np.empty(
+            (*prefix, time_count, 0),
+            dtype=data.dtype,
+        )
+
+    if grouped_range_count < range_count:
+        remainder = data[..., grouped_range_count:].mean(
+            axis=-1,
+            keepdims=True,
+        )
+        return np.concatenate((main_part, remainder), axis=-1)
+
+    return main_part
 
 
 def _subsetIQStrToInt(KOffset: str | None, avgStrat: str | None) -> Tuple[int, int]:

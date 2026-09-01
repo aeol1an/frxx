@@ -35,6 +35,20 @@ py::array_t<T> require_array(
     return py::reinterpret_borrow<py::array_t<T>>(array);
 }
 
+/// Require an exact dtype, dimensionality, and C-contiguous memory layout.
+template <typename T, int Dimensions>
+py::array_t<T> require_c_array(
+    py::array array,
+    const char* name,
+    const char* dtype_error = " has an unsupported dtype"
+) {
+    auto typed = require_array<T, Dimensions>(array, name, dtype_error);
+    if ((array.flags() & py::array::c_style) == 0) {
+        throw py::value_error(std::string(name) + " must be C-contiguous");
+    }
+    return typed;
+}
+
 /// Dispatch an array with one of two supported dtypes after validating its rank.
 template <typename First, typename Second, int Dimensions, typename Function>
 decltype(auto) dispatch_array(

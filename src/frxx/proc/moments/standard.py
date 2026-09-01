@@ -4,36 +4,24 @@ from ...core.frxxData import _FILL_VALUES
 from ...utils import findPulseBoundaries
 from .. import algs
 
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple, TypeAlias
 
 import numpy as np
 
-from numba import njit, prange
+from numpy.typing import NDArray
 
-@njit(
-	'Tuple((complex128[:,:,:], complex128[:,:], complex128[:,:]))'
-	'(complex64[:,:], complex64[:,:], int64[:,:], int32[:])', 
-	parallel=True, cache=True, nogil=True
-)
-def _processRays(iqh, iqv, pulseBoundaries, lags=np.array([0,1], dtype=np.int32)):
-	#nRange, nBigTime, nLags
-	nRange = iqh.shape[0]
-	nBigTime = pulseBoundaries.shape[0]
-	nLags = lags.shape[0]
+Complex64Array: TypeAlias = NDArray[np.complex64]
+Complex128Array: TypeAlias = NDArray[np.complex128]
 
-	RH = np.empty((nBigTime, nRange, nLags), dtype=np.complex128)
-	RV = np.empty((nBigTime, nRange), dtype=np.complex128)
-	RX = np.empty((nBigTime, nRange), dtype=np.complex128)
-
-	for t in prange(nBigTime):
-		iqhs = iqh[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
-		iqvs = iqv[:,pulseBoundaries[t][0]:pulseBoundaries[t][1]]
-		RV[t,:] = algs.ACF.computeRay_M(iqvs, iqvs, 0)
-		RX[t,:] = algs.ACF.computeRay_M(iqhs, iqvs, 0)
-		for l in range(nLags):
-			RH[t,:,l] = algs.ACF.computeRay_M(iqhs, iqhs, lags[l])
-
-	return RH, RV, RX
+if TYPE_CHECKING:
+	def _processRays(
+		iqh: Complex64Array,
+		iqv: Complex64Array,
+		pulseBoundaries: NDArray[np.int64],
+		lags: NDArray[np.int32] = ...,
+	) -> tuple[Complex128Array, Complex128Array, Complex128Array]: ...
+else:
+	from ._standard import _processRays
 
 def calculateDualPolPPIACF(
 		iq: IQ, 
@@ -84,7 +72,7 @@ def calculateDualPolPPIACF(
 	N0hLin = 10**(0.1 * N0h)
 	N0vLin = 10**(0.1 * N0v)
 
-	Sh = np.abs(Rh[:,:,0]) - (N0hLin if subtractNoiseEstimate else 0)
+	Sh = np.abs(Rh[0]) - (N0hLin if subtractNoiseEstimate else 0)
 	Sv = np.abs(Rv) - (N0vLin if subtractNoiseEstimate else 0)
 
 	Sh[Sh <= 0] = np.nan
@@ -96,9 +84,9 @@ def calculateDualPolPPIACF(
 		s = -1
 	else:
 		s = 1
-	VEL = s * -va / np.pi * np.angle(Rh[...,1])
+	VEL = s * -va / np.pi * np.angle(Rh[1])
 
-	WIDTH = np.sqrt(2) * va / np.pi * np.sqrt(np.abs((np.log(Sh / np.abs(Rh[:,:,1])))))
+	WIDTH = np.sqrt(2) * va / np.pi * np.sqrt(np.abs((np.log(Sh / np.abs(Rh[1])))))
 
 	ZDR = 10*np.log10(Sh/Sv) + dcal
 
