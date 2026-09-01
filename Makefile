@@ -44,3 +44,7 @@ endif
 	rm -rf ./dist ./build
 	find . -name "*.egg-info" -exec rm -rf {} +
 	find . -type d -name "__pycache__" -exec rm -rf {} +
+
+.PHONY: install
+install:
+	pip install --no-build-isolation -ve . -Ceditable-verbose=true
