@@ -47,23 +47,23 @@ py::tuple process_rays_py(
             pulseBoundaries, "pulseBoundaries", " must have dtype int64");
     auto typed_lags = require_lags(std::move(lags));
 
-    const py::ssize_t lag_count = typed_lags.shape(0);
-    const py::ssize_t time_count = typed_pulseBoundaries.shape(0);
-    const py::ssize_t range_count = typed_iqh.shape(0);
+    const py::ssize_t nLags = typed_lags.shape(0);
+    const py::ssize_t nBigTime = typed_pulseBoundaries.shape(0);
+    const py::ssize_t nRange = typed_iqh.shape(0);
     py::array_t<Complex> RH(
-        std::vector<py::ssize_t>{lag_count, time_count, range_count});
+        std::vector<py::ssize_t>{nLags, nBigTime, nRange});
     py::array_t<Complex> RV(
-        std::vector<py::ssize_t>{time_count, range_count});
+        std::vector<py::ssize_t>{nBigTime, nRange});
     py::array_t<Complex> RX(
-        std::vector<py::ssize_t>{time_count, range_count});
+        std::vector<py::ssize_t>{nBigTime, nRange});
 
     std::vector<ComplexArrayRef> RH_views;
-    RH_views.reserve(static_cast<std::size_t>(lag_count));
-    const py::ssize_t lag_size = time_count * range_count;
-    for (py::ssize_t lag = 0; lag < lag_count; ++lag) {
+    RH_views.reserve(static_cast<std::size_t>(nLags));
+    const py::ssize_t lagSize = nBigTime * nRange;
+    for (py::ssize_t l = 0; l < nLags; ++l) {
         Eigen::Map<ComplexArray> RH_view(
-            RH.mutable_data() + lag * lag_size,
-            time_count, range_count);
+            RH.mutable_data() + l * lagSize,
+            nBigTime, nRange);
         RH_views.emplace_back(RH_view);
     }
 

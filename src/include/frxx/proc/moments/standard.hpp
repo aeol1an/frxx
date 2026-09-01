@@ -12,10 +12,10 @@ namespace frxx::proc::moments::standard {
 using Complex128Array2DRef =
     frxx::eigen::Array2DRef<std::complex<double>>;
 
-/// Calculate RH for each requested lag plus lag-zero RV and RX,
-/// lag-zero correlations, writing directly into caller-owned output arrays.
+/// Calculate RH for each requested lag plus lag-zero RV and RX correlations,
+/// writing directly into caller-owned output arrays.
 ///
-/// Each RH output has shape `(time_group, range)` and corresponds to the lag at
+/// Each RH output has shape `(nBigTime, nRange)` and corresponds to the lag at
 /// the same index. RV and RX have that same shape.
 void process_rays(
     frxx::eigen::ConstArray2DRef<std::complex<float>> iqh,

@@ -1,7 +1,5 @@
 #include <frxx/proc/algs/ACF.hpp>
 
-#include <algorithm>
-#include <cstdlib>
 #include <complex>
 #include <stdexcept>
 
@@ -39,28 +37,32 @@ void compute_ray_m(
     i64 lag
 ) {
     require_shapes(X1, X2, result);
-    const i64 time_count = static_cast<i64>(X1.cols());
-    const i64 sample_count = std::max<i64>(0, time_count - std::abs(lag));
+    const i64 nr = static_cast<i64>(X1.rows());
+    const i64 nt = static_cast<i64>(X1.cols());
     frxx::utils::WorkerPool pool;
-    pool.pfor(0, X1.rows(), [&](i64 range) {
-        std::complex<double> accumulator{0.0, 0.0};
-        if (lag >= 0) {
-            for (i64 time = 0; time < sample_count; ++time) {
-                accumulator += static_cast<std::complex<double>>(
-                    X1(range, time + lag)) *
+    pool.pfor(0, nr, [&](i64 i) {
+        std::complex<double> acc{0.0, 0.0};
+        if (lag == 0) {
+            for (i64 j = 0; j < nt; ++j) {
+                acc += static_cast<std::complex<double>>(X1(i, j)) *
                     std::conj(static_cast<std::complex<double>>(
-                        X2(range, time)));
+                        X2(i, j)));
+            }
+        } else if (lag > 0) {
+            for (i64 j = 0; j < nt - lag; ++j) {
+                acc += static_cast<std::complex<double>>(X1(i, j + lag)) *
+                    std::conj(static_cast<std::complex<double>>(
+                        X2(i, j)));
             }
         } else {
-            const i64 negative_lag = -lag;
-            for (i64 time = 0; time < sample_count; ++time) {
-                accumulator += static_cast<std::complex<double>>(
-                    X1(range, time)) *
+            const i64 neg_lag = -lag;
+            for (i64 j = 0; j < nt + lag; ++j) {
+                acc += static_cast<std::complex<double>>(X1(i, j)) *
                     std::conj(static_cast<std::complex<double>>(
-                        X2(range, time + negative_lag)));
+                        X2(i, j + neg_lag)));
             }
         }
-        result(range) = accumulator / static_cast<double>(time_count);
+        result(i) = acc / static_cast<double>(nt);
     });
 }
 

@@ -18,11 +18,11 @@ using Complex128RowMap = Eigen::Map<
 
 void require_output_shape(
     const Complex128Array2DRef& output,
-    Eigen::Index time_count,
-    Eigen::Index range_count,
+    Eigen::Index nBigTime,
+    Eigen::Index nRange,
     const char* name
 ) {
-    if (output.rows() != time_count || output.cols() != range_count) {
+    if (output.rows() != nBigTime || output.cols() != nRange) {
         throw std::invalid_argument(
             std::string(name) + " has an incorrect output shape");
     }
@@ -48,48 +48,48 @@ void process_rays(
     if (RH.size() != static_cast<std::size_t>(lags.size())) {
         throw std::invalid_argument("RH output count must equal lag count");
     }
-    const Eigen::Index time_count = pulseBoundaries.rows();
-    const Eigen::Index range_count = iqh.rows();
-    require_output_shape(RV, time_count, range_count, "RV");
-    require_output_shape(RX, time_count, range_count, "RX");
+    const Eigen::Index nBigTime = pulseBoundaries.rows();
+    const Eigen::Index nRange = iqh.rows();
+    require_output_shape(RV, nBigTime, nRange, "RV");
+    require_output_shape(RX, nBigTime, nRange, "RX");
     for (const auto& output : RH) {
-        require_output_shape(output, time_count, range_count, "RH");
+        require_output_shape(output, nBigTime, nRange, "RH");
     }
 
     frxx::utils::WorkerPool pool;
-    pool.pfor(0, time_count, [&](i64 time_group) {
-        const i64 first_pulse = pulseBoundaries(time_group, 0);
-        const i64 last_pulse = pulseBoundaries(time_group, 1);
-        if (first_pulse < 0 || last_pulse < first_pulse ||
-            last_pulse > iqh.cols()) {
+    pool.pfor(0, nBigTime, [&](i64 t) {
+        const i64 firstPulse = pulseBoundaries(t, 0);
+        const i64 lastPulse = pulseBoundaries(t, 1);
+        if (firstPulse < 0 || lastPulse < firstPulse ||
+            lastPulse > iqh.cols()) {
             throw std::out_of_range("pulse boundary is outside the IQ matrix");
         }
-        const i64 pulse_count = last_pulse - first_pulse;
-        auto iqhs = iqh.middleCols(first_pulse, pulse_count);
-        auto iqvs = iqv.middleCols(first_pulse, pulse_count);
+        const i64 nPulses = lastPulse - firstPulse;
+        auto iqhs = iqh.middleCols(firstPulse, nPulses);
+        auto iqvs = iqv.middleCols(firstPulse, nPulses);
 
         Complex128RowMap RV_view(
-            RV.data() + time_group * RV.outerStride(),
-            range_count,
+            RV.data() + t * RV.outerStride(),
+            nRange,
             frxx::eigen::DynamicInnerStride(RV.innerStride()));
         Complex128RowMap RX_view(
-            RX.data() + time_group * RX.outerStride(),
-            range_count,
+            RX.data() + t * RX.outerStride(),
+            nRange,
             frxx::eigen::DynamicInnerStride(RX.innerStride()));
         frxx::proc::algs::acf::compute_ray_m(
             iqvs, iqvs, RV_view, 0);
         frxx::proc::algs::acf::compute_ray_m(
             iqhs, iqvs, RX_view, 0);
 
-        for (i64 lag_index = 0; lag_index < lags.size(); ++lag_index) {
-            auto& RH_lag = RH[lag_index];
+        for (i64 l = 0; l < lags.size(); ++l) {
+            auto& RHl = RH[l];
             Complex128RowMap RH_view(
-                RH_lag.data() + time_group * RH_lag.outerStride(),
-                range_count,
-                frxx::eigen::DynamicInnerStride(RH_lag.innerStride()));
+                RHl.data() + t * RHl.outerStride(),
+                nRange,
+                frxx::eigen::DynamicInnerStride(RHl.innerStride()));
             frxx::proc::algs::acf::compute_ray_m(
                 iqhs, iqhs, RH_view,
-                static_cast<i64>(lags(lag_index)));
+                static_cast<i64>(lags(l)));
         }
     });
 }
