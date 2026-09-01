@@ -10,6 +10,17 @@ py.extension_module(
     '_res',
     'res.cpp',
     dependencies: [pybind11_dep, frxx_dep],
+    include_directories: frxx_pybind_inc,
+    subdir: 'frxx/proc/algs',
+    install: true,
+    install_tag: 'runtime'
+)
+
+py.extension_module(
+    '_fuzzyDCA',
+    'fuzzyDCA.cpp',
+    dependencies: [pybind11_dep, frxx_dep],
+    include_directories: frxx_pybind_inc,
     subdir: 'frxx/proc/algs',
     install: true,
     install_tag: 'runtime'

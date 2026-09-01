@@ -3,11 +3,11 @@
 
 #include <utility>
 
-#include <frxx/utils/numbaWindows.hpp>
+#include <frxx/utils/windows.hpp>
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(_numbaWindows, module) {
+PYBIND11_MODULE(_windows, module) {
     using frxx::utils::i64;
     module.def("rectangular", [](i64 size) {
         return py::cast(frxx::utils::rectangular(size));

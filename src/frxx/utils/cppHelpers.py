@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     def nanargmax(arr: FloatArray) -> int: ...
     def nanargmin(arr: FloatArray) -> int: ...
 else:
-    from ._numbaHelpers import (
+    from ._cppHelpers import (
         get_masked_float2d,
         nanargmax,
         nanargmin,

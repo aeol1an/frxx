@@ -3,9 +3,9 @@
 #include <pybind11/pybind11.h>
 
 #include <complex>
-#include <string>
 #include <utility>
 
+#include <frxx/pybind/eigen.hpp>
 #include <frxx/proc/algs/res.hpp>
 #include <frxx/utils/integer.hpp>
 
@@ -31,38 +31,12 @@ struct MatrixTypes<std::complex<double>> {
     using Result = native::Complex128SubsetResult;
 };
 
-template <typename T>
-struct type_tag {
-    using type = T;
-};
-
-template <typename T, int Dimensions>
-py::array_t<T> require_array(py::array array, const char* name) {
-    if (!array.dtype().is(py::dtype::of<T>())) {
-        throw py::type_error(std::string(name) + " has an unsupported dtype");
-    }
-    if (array.ndim() != Dimensions) {
-        throw py::value_error(
-            std::string(name) + " must have " + std::to_string(Dimensions) +
-            " dimensions");
-    }
-    return py::reinterpret_borrow<py::array_t<T>>(array);
-}
-
 template <typename Function>
 decltype(auto) dispatch_complex(py::array array, const char* name, Function&& function) {
-    if (array.dtype().is(py::dtype::of<std::complex<float>>())) {
-        return std::forward<Function>(function)(
-            require_array<std::complex<float>, 2>(array, name),
-            type_tag<std::complex<float>>{});
-    }
-    if (array.dtype().is(py::dtype::of<std::complex<double>>())) {
-        return std::forward<Function>(function)(
-            require_array<std::complex<double>, 2>(array, name),
-            type_tag<std::complex<double>>{});
-    }
-    throw py::type_error(
-        std::string(name) + " must have dtype complex64 or complex128");
+    return frxx::pybind::dispatch_array<
+        std::complex<float>, std::complex<double>, 2>(
+            array, name, " must have dtype complex64 or complex128",
+            std::forward<Function>(function));
 }
 
 template <typename Function>
@@ -77,41 +51,23 @@ decltype(auto) translate_native_errors(Function&& function) {
 }
 
 template <typename Scalar>
-native::DynamicStride matrix_stride(const py::array_t<Scalar>& array) {
-    return {
-        array.strides(0) / static_cast<py::ssize_t>(sizeof(Scalar)),
-        array.strides(1) / static_cast<py::ssize_t>(sizeof(Scalar)),
-    };
-}
-
-template <typename Scalar>
 auto map_const_matrix(const py::array_t<Scalar>& array) {
     using Matrix = typename MatrixTypes<Scalar>::Matrix;
-    return Eigen::Map<const Matrix, 0, native::DynamicStride>(
-        array.data(), array.shape(0), array.shape(1), matrix_stride(array));
+    return frxx::pybind::map_const_matrix_as<Matrix>(array);
 }
 
 template <typename Scalar>
 auto map_mutable_matrix(py::array_t<Scalar>& array) {
     using Matrix = typename MatrixTypes<Scalar>::Matrix;
-    return Eigen::Map<Matrix, 0, native::DynamicStride>(
-        array.mutable_data(), array.shape(0), array.shape(1), matrix_stride(array));
+    return frxx::pybind::map_mutable_matrix_as<Matrix>(array);
 }
 
 auto map_const_int_matrix(const py::array_t<i64>& array) {
-    return Eigen::Map<const native::Int64Matrix, 0, native::DynamicStride>(
-        array.data(), array.shape(0), array.shape(1),
-        native::DynamicStride(
-            array.strides(0) / static_cast<py::ssize_t>(sizeof(i64)),
-            array.strides(1) / static_cast<py::ssize_t>(sizeof(i64))));
+    return frxx::pybind::map_const_matrix_as<native::Int64Matrix>(array);
 }
 
 auto map_const_int_vector(const py::array_t<i64>& array) {
-    return Eigen::Map<
-        const native::Int64Vector, 0, Eigen::InnerStride<Eigen::Dynamic>>(
-            array.data(), array.shape(0),
-            Eigen::InnerStride<Eigen::Dynamic>(
-                array.strides(0) / static_cast<py::ssize_t>(sizeof(i64))));
+    return frxx::pybind::map_const_vector_as<native::Int64Vector>(array);
 }
 
 void range_subset_py(
@@ -124,12 +80,10 @@ void range_subset_py(
     i64 first_pulse,
     i64 last_pulse
 ) {
-    if (!result.writeable()) {
-        throw py::value_error("result must be writable");
-    }
+    frxx::pybind::require_writable(result, "result");
     dispatch_complex(iq, "iq", [&](auto typed_iq, auto tag) {
         using Scalar = typename decltype(tag)::type;
-        auto typed_result = require_array<Scalar, 2>(result, "result");
+        auto typed_result = frxx::pybind::require_array<Scalar, 2>(result, "result");
         auto input = map_const_matrix(typed_iq);
         auto output = map_mutable_matrix(typed_result);
         translate_native_errors([&] {
@@ -149,16 +103,14 @@ void azimuth_subset_py(
     py::array first_pulses,
     py::array last_pulses
 ) {
-    if (!result.writeable()) {
-        throw py::value_error("result must be writable");
-    }
-    auto typed_first = require_array<i64, 1>(first_pulses, "fps");
-    auto typed_last = require_array<i64, 1>(last_pulses, "lps");
+    frxx::pybind::require_writable(result, "result");
+    auto typed_first = frxx::pybind::require_array<i64, 1>(first_pulses, "fps");
+    auto typed_last = frxx::pybind::require_array<i64, 1>(last_pulses, "lps");
     auto first = map_const_int_vector(typed_first);
     auto last = map_const_int_vector(typed_last);
     dispatch_complex(iq, "iq", [&](auto typed_iq, auto tag) {
         using Scalar = typename decltype(tag)::type;
-        auto typed_result = require_array<Scalar, 2>(result, "result");
+        auto typed_result = frxx::pybind::require_array<Scalar, 2>(result, "result");
         auto input = map_const_matrix(typed_iq);
         auto output = map_mutable_matrix(typed_result);
         translate_native_errors([&] {
@@ -182,9 +134,9 @@ py::tuple subset_iq_py(
     i64 average_strategy,
     bool shape_only
 ) {
-    auto typed_boundaries = require_array<i64, 2>(
+    auto typed_boundaries = frxx::pybind::require_array<i64, 2>(
         pulse_boundaries, "pulseBoundaries");
-    auto typed_ranges = require_array<i64, 1>(ranges, "iranges");
+    auto typed_ranges = frxx::pybind::require_array<i64, 1>(ranges, "iranges");
     auto boundaries = map_const_int_matrix(typed_boundaries);
     auto range_indices = map_const_int_vector(typed_ranges);
 

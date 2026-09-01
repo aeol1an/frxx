@@ -9,7 +9,7 @@ from typing import Tuple, cast
 from numpy.typing import NDArray
 
 import numpy as np
-from ...utils import numbaWindows as wn
+from ...utils import windows as wn
 
 import dask as d
 import dask.array as da
