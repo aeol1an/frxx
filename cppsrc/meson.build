@@ -1,0 +1,16 @@
+cpp_sources = []
+
+subdir('frxx')
+
+frxx_cpp_lib = static_library(
+    'frxx_cpp',
+    cpp_sources,
+    include_directories: frxx_cpp_inc,
+    install: false,
+    pic: true,
+)
+
+frxx_dep = declare_dependency(
+    include_directories: frxx_cpp_inc,
+    link_with: frxx_cpp_lib,
+)

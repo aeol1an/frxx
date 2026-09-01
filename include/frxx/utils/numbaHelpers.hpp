@@ -1,88 +1,72 @@
 #pragma once
 
-#include <cmath>
-#include <stdexcept>
-#include <vector>
-
+#include <frxx/eigen.hpp>
 #include <frxx/utils/integer.hpp>
 
 namespace frxx::utils {
 
-template <typename T, typename Array, typename Mask>
-std::vector<T> get_masked_float2d(
-    const Array& array, const Mask& mask, i64 rows, i64 columns
-) {
-    std::vector<T> output;
-    for (i64 row = 0; row < rows; ++row) {
-        for (i64 column = 0; column < columns; ++column) {
-            if (mask(row, column)) {
-                output.push_back(array(row, column));
-            }
-        }
-    }
-    return output;
-}
+/// Copy masked float32 elements from a two-dimensional Eigen array.
+///
+/// @param array Source values.
+/// @param mask Boolean selector with the same shape as `array`.
+/// @return Selected elements in row-major mask traversal order.
+frxx::eigen::Array1D<float> get_masked_float2d(
+    frxx::eigen::ConstArray2DRef<float> array,
+    frxx::eigen::ConstArray2DRef<bool> mask
+);
 
-template <typename T, typename Array, typename Mask>
+/// Float64 overload of `get_masked_float2d`.
+frxx::eigen::Array1D<double> get_masked_float2d(
+    frxx::eigen::ConstArray2DRef<double> array,
+    frxx::eigen::ConstArray2DRef<bool> mask
+);
+
+/// Assign a scalar to selected elements of a float32 Eigen array.
+///
+/// @param array Mutable destination values.
+/// @param mask Boolean selector with the same shape as `array`.
+/// @param value Scalar assigned wherever the mask is true.
 void set_masked_float2d_scalar(
-    Array& array, const Mask& mask, i64 rows, i64 columns, T value
-) {
-    for (i64 row = 0; row < rows; ++row) {
-        for (i64 column = 0; column < columns; ++column) {
-            if (mask(row, column)) {
-                array(row, column) = value;
-            }
-        }
-    }
-}
+    frxx::eigen::Array2DRef<float> array,
+    frxx::eigen::ConstArray2DRef<bool> mask,
+    float value
+);
 
-template <typename Array, typename Mask, typename Values>
+/// Float64 overload of `set_masked_float2d_scalar`.
+void set_masked_float2d_scalar(
+    frxx::eigen::Array2DRef<double> array,
+    frxx::eigen::ConstArray2DRef<bool> mask,
+    double value
+);
+
+/// Assign consecutive float32 values to selected elements of an Eigen array.
+///
+/// @param array Mutable destination values.
+/// @param mask Boolean selector with the same shape as `array`.
+/// @param values Replacement values in row-major mask-selection order.
 void set_masked_float2d_array(
-    Array& array, const Mask& mask, const Values& values,
-    i64 rows, i64 columns
-) {
-    i64 index = 0;
-    for (i64 row = 0; row < rows; ++row) {
-        for (i64 column = 0; column < columns; ++column) {
-            if (mask(row, column)) {
-                array(row, column) = values(index++);
-            }
-        }
-    }
-}
+    frxx::eigen::Array2DRef<float> array,
+    frxx::eigen::ConstArray2DRef<bool> mask,
+    frxx::eigen::ConstArray1DRef<float> values
+);
 
-template <typename Array>
-i64 nanargmax(const Array& array, i64 size) {
-    i64 index = 0;
-    bool found = false;
-    for (i64 current = 0; current < size; ++current) {
-        const auto value = array(current);
-        if (!std::isnan(value) && (!found || value > array(index))) {
-            index = current;
-            found = true;
-        }
-    }
-    if (!found) {
-        throw std::invalid_argument("All-NaN slice encountered");
-    }
-    return index;
-}
+/// Float64 overload of `set_masked_float2d_array`.
+void set_masked_float2d_array(
+    frxx::eigen::Array2DRef<double> array,
+    frxx::eigen::ConstArray2DRef<bool> mask,
+    frxx::eigen::ConstArray1DRef<double> values
+);
 
-template <typename Array>
-i64 nanargmin(const Array& array, i64 size) {
-    i64 index = 0;
-    bool found = false;
-    for (i64 current = 0; current < size; ++current) {
-        const auto value = array(current);
-        if (!std::isnan(value) && (!found || value < array(index))) {
-            index = current;
-            found = true;
-        }
-    }
-    if (!found) {
-        throw std::invalid_argument("All-NaN slice encountered");
-    }
-    return index;
-}
+/// Return the index of the greatest non-NaN float32 value.
+i64 nanargmax(frxx::eigen::ConstArray1DRef<float> array);
+
+/// Float64 overload of `nanargmax`.
+i64 nanargmax(frxx::eigen::ConstArray1DRef<double> array);
+
+/// Return the index of the least non-NaN float32 value.
+i64 nanargmin(frxx::eigen::ConstArray1DRef<float> array);
+
+/// Float64 overload of `nanargmin`.
+i64 nanargmin(frxx::eigen::ConstArray1DRef<double> array);
 
 }  // namespace frxx::utils

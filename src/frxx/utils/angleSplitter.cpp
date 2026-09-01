@@ -1,36 +1,49 @@
+#include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-#include <algorithm>
-#include <vector>
+#include <string>
+#include <utility>
 
+#include <frxx/eigen.hpp>
 #include <frxx/utils/angleSplitter.hpp>
-#include <frxx/utils/integer.hpp>
-#include <frxx/utils/pybind_numpy.hpp>
 
 namespace py = pybind11;
 
 namespace {
 
-py::tuple find_pulse_boundaries(
+py::array_t<float> require_float32_1d(py::array array, const char* name) {
+    if (!array.dtype().is(py::dtype::of<float>())) {
+        throw py::type_error(std::string(name) + " must have dtype float32");
+    }
+    if (array.ndim() != 1) {
+        throw py::value_error(std::string(name) + " must have 1 dimension");
+    }
+    return py::reinterpret_borrow<py::array_t<float>>(array);
+}
+
+auto map_const_vector(const py::array_t<float>& array) {
+    return Eigen::Map<
+        const frxx::eigen::Array1D<float>, 0, frxx::eigen::DynamicInnerStride>(
+            array.data(), array.shape(0),
+            frxx::eigen::DynamicInnerStride(
+                array.strides(0) / static_cast<py::ssize_t>(sizeof(float))));
+}
+
+py::tuple find_pulse_boundaries_py(
     py::array angle, float pixel_width_degrees, float beam_overlap_degrees
 ) {
-    auto typed_angle = frxx::utils::require_array<float, 1>(angle, "angle");
-    auto angle_view = typed_angle.unchecked<1>();
+    auto typed_angle = require_float32_1d(angle, "angle");
+    auto eigen_angle = map_const_vector(typed_angle);
     frxx::utils::PulseBoundaries result;
     {
         py::gil_scoped_release release;
         result = frxx::utils::find_pulse_boundaries(
-            angle_view, typed_angle.shape(0), pixel_width_degrees, beam_overlap_degrees);
+            eigen_angle, pixel_width_degrees, beam_overlap_degrees);
     }
-
-    const py::ssize_t groups = static_cast<py::ssize_t>(result.angles.size());
-    py::array_t<frxx::utils::i64> boundaries(
-        std::vector<py::ssize_t>{groups, py::ssize_t{2}});
-    std::copy(result.indices.begin(), result.indices.end(), boundaries.mutable_data());
-    py::array_t<float> angles(groups);
-    std::copy(result.angles.begin(), result.angles.end(), angles.mutable_data());
-    return py::make_tuple(boundaries, angles);
+    return py::make_tuple(
+        py::cast(std::move(result.indices)),
+        py::cast(std::move(result.angles)));
 }
 
 }  // namespace
@@ -38,6 +51,6 @@ py::tuple find_pulse_boundaries(
 PYBIND11_MODULE(_angleSplitter, module) {
     module.def("inDegreeRange", &frxx::utils::in_degree_range,
         py::arg("val"), py::arg("low"), py::arg("high"));
-    module.def("findPulseBoundaries", &find_pulse_boundaries,
+    module.def("findPulseBoundaries", &find_pulse_boundaries_py,
         py::arg("angle"), py::arg("pixelWidthDeg"), py::arg("beamOverlapDeg"));
 }

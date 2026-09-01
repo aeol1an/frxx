@@ -1,13 +1,14 @@
+#include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-#include <algorithm>
 #include <optional>
-#include <vector>
+#include <string>
+#include <utility>
 
+#include <frxx/eigen.hpp>
 #include <frxx/utils/integer.hpp>
 #include <frxx/utils/numbaHelpers.hpp>
-#include <frxx/utils/pybind_numpy.hpp>
 
 namespace py = pybind11;
 
@@ -15,109 +16,146 @@ namespace {
 
 using frxx::utils::i64;
 
-void require_same_shape(const py::array& array, const py::array& mask) {
-    if (array.shape(0) != mask.shape(0) || array.shape(1) != mask.shape(1)) {
-        throw py::value_error("arr and mask must have the same shape");
+template <typename T>
+struct type_tag {
+    using type = T;
+};
+
+template <typename T, int Dimensions>
+py::array_t<T> require_array(py::array array, const char* name) {
+    if (!array.dtype().is(py::dtype::of<T>())) {
+        throw py::type_error(std::string(name) + " has an unsupported dtype");
     }
+    if (array.ndim() != Dimensions) {
+        throw py::value_error(
+            std::string(name) + " must have " + std::to_string(Dimensions) +
+            " dimensions");
+    }
+    return py::reinterpret_borrow<py::array_t<T>>(array);
 }
 
-i64 unwrap_i64(py::object value, i64 default_value) {
+template <int Dimensions, typename Function>
+decltype(auto) dispatch_float(py::array array, const char* name, Function&& function) {
+    if (array.dtype().is(py::dtype::of<float>())) {
+        return std::forward<Function>(function)(
+            require_array<float, Dimensions>(array, name), type_tag<float>{});
+    }
+    if (array.dtype().is(py::dtype::of<double>())) {
+        return std::forward<Function>(function)(
+            require_array<double, Dimensions>(array, name), type_tag<double>{});
+    }
+    throw py::type_error(std::string(name) + " must have dtype float32 or float64");
+}
+
+template <typename T>
+frxx::eigen::DynamicStride matrix_stride(const py::array_t<T>& array) {
+    return {
+        array.strides(0) / static_cast<py::ssize_t>(sizeof(T)),
+        array.strides(1) / static_cast<py::ssize_t>(sizeof(T)),
+    };
+}
+
+template <typename T>
+auto map_const_matrix(const py::array_t<T>& array) {
+    return Eigen::Map<
+        const frxx::eigen::Array2D<T>, 0, frxx::eigen::DynamicStride>(
+            array.data(), array.shape(0), array.shape(1), matrix_stride(array));
+}
+
+template <typename T>
+auto map_mutable_matrix(py::array_t<T>& array) {
+    return Eigen::Map<
+        frxx::eigen::Array2D<T>, 0, frxx::eigen::DynamicStride>(
+            array.mutable_data(), array.shape(0), array.shape(1), matrix_stride(array));
+}
+
+template <typename T>
+auto map_const_vector(const py::array_t<T>& array) {
+    return Eigen::Map<
+        const frxx::eigen::Array1D<T>, 0, frxx::eigen::DynamicInnerStride>(
+            array.data(), array.shape(0),
+            frxx::eigen::DynamicInnerStride(
+                array.strides(0) / static_cast<py::ssize_t>(sizeof(T))));
+}
+
+i64 unwrap_i64_py(py::object value, i64 default_value) {
     return frxx::utils::unwrap_i64(
         value.is_none() ? std::nullopt : std::optional<i64>{value.cast<i64>()},
         default_value);
 }
 
-py::array get_masked(py::array array, py::array mask) {
-    auto typed_mask = frxx::utils::require_array<bool, 2>(mask, "mask");
-    require_same_shape(array, mask);
-    return frxx::utils::dispatch_float<2>(array, "arr", [&](auto typed_array, auto tag) {
-        using T = typename decltype(tag)::type;
-        auto array_view = typed_array.template unchecked<2>();
-        auto mask_view = typed_mask.template unchecked<2>();
-        std::vector<T> values;
+py::object get_masked_py(py::array array, py::array mask) {
+    auto typed_mask = require_array<bool, 2>(mask, "mask");
+    auto eigen_mask = map_const_matrix(typed_mask);
+    return dispatch_float<2>(array, "arr", [&](auto typed_array, auto) {
+        auto eigen_array = map_const_matrix(typed_array);
+        decltype(frxx::utils::get_masked_float2d(eigen_array, eigen_mask)) result;
         {
             py::gil_scoped_release release;
-            values = frxx::utils::get_masked_float2d<T>(
-                array_view, mask_view, typed_array.shape(0), typed_array.shape(1));
+            result = frxx::utils::get_masked_float2d(eigen_array, eigen_mask);
         }
-        py::array_t<T> output(static_cast<py::ssize_t>(values.size()));
-        std::copy(values.begin(), values.end(), output.mutable_data());
-        return py::array(std::move(output));
+        return py::cast(std::move(result));
     });
 }
 
-void set_masked_scalar(py::array array, py::array mask, py::object value) {
+void set_masked_scalar_py(py::array array, py::array mask, py::object value) {
     if (!array.writeable()) {
         throw py::value_error("arr must be writable");
     }
-    auto typed_mask = frxx::utils::require_array<bool, 2>(mask, "mask");
-    require_same_shape(array, mask);
-    frxx::utils::dispatch_float<2>(array, "arr", [&](auto typed_array, auto tag) {
+    auto typed_mask = require_array<bool, 2>(mask, "mask");
+    auto eigen_mask = map_const_matrix(typed_mask);
+    dispatch_float<2>(array, "arr", [&](auto typed_array, auto tag) {
         using T = typename decltype(tag)::type;
-        auto array_view = typed_array.template mutable_unchecked<2>();
-        auto mask_view = typed_mask.template unchecked<2>();
+        auto eigen_array = map_mutable_matrix(typed_array);
         const T typed_value = value.cast<T>();
         py::gil_scoped_release release;
-        frxx::utils::set_masked_float2d_scalar<T>(
-            array_view, mask_view, typed_array.shape(0), typed_array.shape(1), typed_value);
+        frxx::utils::set_masked_float2d_scalar(
+            eigen_array, eigen_mask, typed_value);
     });
 }
 
-void set_masked_array(py::array array, py::array mask, py::array values) {
+void set_masked_array_py(py::array array, py::array mask, py::array values) {
     if (!array.writeable()) {
         throw py::value_error("arr must be writable");
     }
-    auto typed_mask = frxx::utils::require_array<bool, 2>(mask, "mask");
-    require_same_shape(array, mask);
-    frxx::utils::dispatch_float<2>(array, "arr", [&](auto typed_array, auto tag) {
+    auto typed_mask = require_array<bool, 2>(mask, "mask");
+    auto eigen_mask = map_const_matrix(typed_mask);
+    dispatch_float<2>(array, "arr", [&](auto typed_array, auto tag) {
         using T = typename decltype(tag)::type;
-        auto typed_values = frxx::utils::require_array<T, 1>(values, "val");
-        auto array_view = typed_array.template mutable_unchecked<2>();
-        auto mask_view = typed_mask.template unchecked<2>();
-        auto value_view = typed_values.template unchecked<1>();
-
-        i64 selected = 0;
-        for (py::ssize_t row = 0; row < typed_mask.shape(0); ++row) {
-            for (py::ssize_t column = 0; column < typed_mask.shape(1); ++column) {
-                selected += mask_view(row, column) ? 1 : 0;
-            }
-        }
-        if (typed_values.shape(0) < selected) {
-            throw py::value_error("val does not contain enough elements");
-        }
-
+        auto typed_values = require_array<T, 1>(values, "val");
+        auto eigen_array = map_mutable_matrix(typed_array);
+        auto eigen_values = map_const_vector(typed_values);
         py::gil_scoped_release release;
         frxx::utils::set_masked_float2d_array(
-            array_view, mask_view, value_view,
-            typed_array.shape(0), typed_array.shape(1));
+            eigen_array, eigen_mask, eigen_values);
     });
 }
 
-i64 nanargmax(py::array array) {
-    return frxx::utils::dispatch_float<1>(array, "arr", [](auto typed_array, auto) {
-        auto view = typed_array.template unchecked<1>();
+i64 nanargmax_py(py::array array) {
+    return dispatch_float<1>(array, "arr", [](auto typed_array, auto) {
+        auto eigen_array = map_const_vector(typed_array);
         py::gil_scoped_release release;
-        return frxx::utils::nanargmax(view, typed_array.shape(0));
+        return frxx::utils::nanargmax(eigen_array);
     });
 }
 
-i64 nanargmin(py::array array) {
-    return frxx::utils::dispatch_float<1>(array, "arr", [](auto typed_array, auto) {
-        auto view = typed_array.template unchecked<1>();
+i64 nanargmin_py(py::array array) {
+    return dispatch_float<1>(array, "arr", [](auto typed_array, auto) {
+        auto eigen_array = map_const_vector(typed_array);
         py::gil_scoped_release release;
-        return frxx::utils::nanargmin(view, typed_array.shape(0));
+        return frxx::utils::nanargmin(eigen_array);
     });
 }
 
 }  // namespace
 
 PYBIND11_MODULE(_numbaHelpers, module) {
-    module.def("unwrap_i64", &unwrap_i64, py::arg("opt"), py::arg("default"));
-    module.def("get_masked_float2d", &get_masked, py::arg("arr"), py::arg("mask"));
-    module.def("set_masked_float2d_scalar", &set_masked_scalar,
+    module.def("unwrap_i64", &unwrap_i64_py, py::arg("opt"), py::arg("default"));
+    module.def("get_masked_float2d", &get_masked_py, py::arg("arr"), py::arg("mask"));
+    module.def("set_masked_float2d_scalar", &set_masked_scalar_py,
         py::arg("arr"), py::arg("mask"), py::arg("val"));
-    module.def("set_masked_float2d_array", &set_masked_array,
+    module.def("set_masked_float2d_array", &set_masked_array_py,
         py::arg("arr"), py::arg("mask"), py::arg("val"));
-    module.def("nanargmax", &nanargmax, py::arg("arr"));
-    module.def("nanargmin", &nanargmin, py::arg("arr"));
+    module.def("nanargmax", &nanargmax_py, py::arg("arr"));
+    module.def("nanargmin", &nanargmin_py, py::arg("arr"));
 }
