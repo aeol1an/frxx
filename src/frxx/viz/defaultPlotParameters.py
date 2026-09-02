@@ -32,6 +32,12 @@ moments = {
 		'cmap': cmaps.rmap(256),
         'title': 'Correlation Coefficient',
 		'units': ''
+	},
+	'WIDTH': {
+		'ranges': (0, 40, _nCBTicks),
+		'cmap': 'Carbone42',
+        'title': 'Correlation Coefficient',
+		'units': 'm/s'
 	} 
 }
 
