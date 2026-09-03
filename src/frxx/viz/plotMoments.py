@@ -13,6 +13,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.patheffects as pe
 import matplotlib.text as mtext
 
+from frxx.utils.angleSplitter import trimSurveillance
+
 def elementMultuplier(scaleRate, width, aspectRatioWH):
 	return 1 + scaleRate*(max(width, width/aspectRatioWH)/2-1) #width multiplier
 
@@ -32,6 +34,9 @@ def plotPPI(
 	backend: bool = True
 ):
 	import cmweather
+	stop = trimSurveillance(np.asarray(azimuths, dtype=np.float32))
+	data = data[:stop]
+	azimuths = azimuths[:stop]
 	if not (clims is None):
 		vmin, vmax, ticknum = clims
 		ticks = np.linspace(vmin, vmax, ticknum)

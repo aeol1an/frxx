@@ -14,10 +14,43 @@ float positive_degrees(float value) {
     return result < 0.0F ? result + 360.0F : result;
 }
 
+float wrapped_difference(float current, float previous) {
+    return std::remainder(current - previous, 360.0F);
+}
+
 }  // namespace
 
 bool in_degree_range(double value, double low, double high) {
     return low < high ? value > low && value < high : value > low || value < high;
+}
+
+i64 trim_surveillance(frxx::eigen::ConstArray1DRef<float> angle) {
+    const i64 ray_count = static_cast<i64>(angle.size());
+    if (ray_count < 2) {
+        return ray_count;
+    }
+
+    double direction_sum = 0.0;
+    for (i64 index = 1; index < ray_count; ++index) {
+        if (!std::isfinite(angle(index)) || !std::isfinite(angle(index - 1))) {
+            throw std::invalid_argument("angle must contain only finite values");
+        }
+        direction_sum += wrapped_difference(angle(index), angle(index - 1));
+    }
+    if (direction_sum == 0.0) {
+        return ray_count;
+    }
+
+    const float direction = direction_sum > 0.0 ? 1.0F : -1.0F;
+    double rotation = 0.0;
+    for (i64 index = 1; index < ray_count; ++index) {
+        rotation += direction * wrapped_difference(
+            angle(index), angle(index - 1));
+        if (rotation >= 360.0) {
+            return index;
+        }
+    }
+    return ray_count;
 }
 
 PulseBoundaries find_pulse_boundaries(

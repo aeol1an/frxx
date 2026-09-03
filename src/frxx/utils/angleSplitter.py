@@ -10,5 +10,10 @@ if TYPE_CHECKING:
         pixelWidthDeg: float,
         beamOverlapDeg: float,
     ) -> tuple[NDArray[np.int64], NDArray[np.float32]]: ...
+    def trimSurveillance(angle: NDArray[np.float32]) -> int: ...
 else:
-    from ._angleSplitter import findPulseBoundaries, inDegreeRange
+    from ._angleSplitter import (
+        findPulseBoundaries,
+        inDegreeRange,
+        trimSurveillance,
+    )

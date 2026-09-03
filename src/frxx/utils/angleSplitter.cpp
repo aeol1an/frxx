@@ -28,6 +28,14 @@ py::tuple find_pulse_boundaries_py(
         py::cast(std::move(result.angles)));
 }
 
+std::int64_t trim_surveillance_py(py::array angle) {
+    auto typed_angle = frxx::pybind::require_array<float, 1>(
+        angle, "angle", " must have dtype float32");
+    auto eigen_angle = frxx::pybind::map_const_vector(typed_angle);
+    py::gil_scoped_release release;
+    return frxx::utils::trim_surveillance(eigen_angle);
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_angleSplitter, module) {
@@ -35,4 +43,5 @@ PYBIND11_MODULE(_angleSplitter, module) {
         py::arg("val"), py::arg("low"), py::arg("high"));
     module.def("findPulseBoundaries", &find_pulse_boundaries_py,
         py::arg("angle"), py::arg("pixelWidthDeg"), py::arg("beamOverlapDeg"));
+    module.def("trimSurveillance", &trim_surveillance_py, py::arg("angle"));
 }

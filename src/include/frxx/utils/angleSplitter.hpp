@@ -21,6 +21,16 @@ struct PulseBoundaries {
 /// @return True when `value` is inside the range.
 bool in_degree_range(double value, double low, double high);
 
+/// Find the end of the first complete surveillance rotation.
+///
+/// Rotation direction is inferred from the shortest wrapped differences
+/// between consecutive azimuths. If the scan does not complete one full
+/// rotation, the returned index is `angle.size()`.
+///
+/// @param angle Ray azimuths stored as float32 degrees.
+/// @return Exclusive stop index for slicing the first rotation.
+i64 trim_surveillance(frxx::eigen::ConstArray1DRef<float> angle);
+
 /// Group a scan's pulse angles and find each group's inclusive index bounds.
 ///
 /// @param angle Pulse angles stored as float32 degrees.
