@@ -62,7 +62,7 @@ def plotPPI(
 		ranges=rangesKM,
 		azimuths=azimuths,
 		elevations=[elevation],
-		edges=False
+		edges=True
 	)
 
 	if (xlim is None) != (yCenter is None):
@@ -76,7 +76,7 @@ def plotPPI(
 	ylim = (yCenter - 0.5*dy, yCenter + 0.5*dy)
 	
 	plot = ax.pcolormesh(
-		xx, yy, data, 
+		xx, yy, data, shading="flat",
 		cmap=cmap, vmin=vmin, vmax=vmax,
 		zorder = 0
 	)
