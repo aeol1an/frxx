@@ -58,11 +58,17 @@ def plotPPI(
 	ax = fig.add_axes((0, 0, 1, 1))
 	
 	from pyart.core.transforms import antenna_vectors_to_cartesian
-	xx, yy, _ = antenna_vectors_to_cartesian(
+	xx_plot, yy_plot, _ = antenna_vectors_to_cartesian(
 		ranges=rangesKM,
 		azimuths=azimuths,
 		elevations=[elevation],
 		edges=True
+	)
+	xx, yy, _ = antenna_vectors_to_cartesian(
+		ranges=rangesKM,
+		azimuths=azimuths,
+		elevations=[elevation],
+		edges=False
 	)
 
 	if (xlim is None) != (yCenter is None):
@@ -76,7 +82,7 @@ def plotPPI(
 	ylim = (yCenter - 0.5*dy, yCenter + 0.5*dy)
 	
 	plot = ax.pcolormesh(
-		xx, yy, data, shading="flat",
+		xx_plot, yy_plot, data, shading="flat",
 		cmap=cmap, vmin=vmin, vmax=vmax,
 		zorder = 0
 	)
