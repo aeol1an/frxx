@@ -68,7 +68,7 @@ def pathToJson(path: str | Path) -> dict:
 			drive = dirPath.drive
 			dirParts = list(dirPath.parts[1:])
 			prefix = {
-				"win": drive,
+				"win": drive+"\\",
 				"macos": f"/Volumes/{drive[0]}",
 				"linux": f"/mnt/{drive[0].lower()}"
 			}
@@ -81,7 +81,7 @@ def pathToJson(path: str | Path) -> dict:
 				dirParts = list(dirPath.parts[1:])
 			
 			prefix = {
-				"win": f"{driveName[0].upper()}:",
+				"win": f"{driveName[0].upper()}:\\",
 				"macos": f"/Volumes/{driveName}",
 				"linux": f"/mnt/{driveName.lower().replace(' ', '_')}"
 			}
@@ -94,7 +94,7 @@ def pathToJson(path: str | Path) -> dict:
 				dirParts = list(dirPath.parts[1:])
 			
 			prefix = {
-				"win": f"{driveName[0].upper()}:",
+				"win": f"{driveName[0].upper()}:\\",
 				"macos": f"/Volumes/{driveName}",
 				"linux": f"/mnt/{driveName}"
 			}
