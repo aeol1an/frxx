@@ -185,7 +185,7 @@ def editPathJsonDir(pathJson: dict, newDirPath: str | Path) -> dict:
 	if not validatePath(newDirPath, mustBeDir=True):
 		raise ValueError(f"Invalid directory path: {newDirPath}")
 	
-	newDirJson = pathToJson(Path(newDirPath))
+	newDirJson = pathToJson(Path(newDirPath), isDir=True)
 	
 	return {
 		"prefix": newDirJson["prefix"],
