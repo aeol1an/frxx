@@ -45,16 +45,33 @@ def getPlatform() -> str:
 	else:
 		return "linux"
 
-def pathToJson(path: str | Path) -> dict:
+def resolveIsDir(path: Path, rawPath: str, override: bool | None = None) -> bool:
+	"""
+	Determine whether a path refers to a directory.
+	Priority: explicit override > filesystem check > trailing separator > suffix guess.
+	"""
+	if override is not None:
+		return override
+	
+	if path.exists():
+		return path.is_dir()
+	
+	# Trailing slash is an authoritative signal from the user
+	if rawPath.endswith(("/", "\\")):
+		return True
+	
+	# Last-resort guess: extension-less names are more often directories,
+	# but this is genuinely ambiguous (Makefile, README, my.project.folder, etc.)
+	# Caller should pass `override` if they know.
+	return not path.suffix
+
+
+def pathToJson(path: str | Path, isDir: bool | None = None) -> dict:
+	rawPath = str(path)
 	path = Path(path)
 	currentPlatform = getPlatform()
 	
-	# Determine if path is a directory or file
-	# If path exists, check directly; otherwise, assume it's a file if it has a suffix
-	if path.exists():
-		isDir = path.is_dir()
-	else:
-		isDir = not path.suffix
+	isDir = resolveIsDir(path, rawPath, isDir)
 	
 	if isDir:
 		name = ""
@@ -65,54 +82,84 @@ def pathToJson(path: str | Path) -> dict:
 	
 	if dirPath.is_absolute():
 		if currentPlatform == "win":
-			drive = dirPath.drive
+			drive = dirPath.drive  # "C:", "\\wsl$\Ubuntu", "\\server\share", or ""
 			dirParts = list(dirPath.parts[1:])
-			prefix = {
-				"win": drive+"\\",
-				"macos": f"/Volumes/{drive[0]}",
-				"linux": f"/mnt/{drive[0].lower()}"
-			}
+			
+			if drive.startswith("\\\\"):
+				# UNC path — parse \\host\share
+				uncBits = drive.lstrip("\\").split("\\")
+				host  = uncBits[0] if len(uncBits) > 0 else ""
+				share = uncBits[1] if len(uncBits) > 1 else ""
+				
+				if host.lower() in ("wsl$", "wsl.localhost"):
+					# WSL: share is the distro name, and the path inside is
+					# that distro's root filesystem.
+					prefix = {
+						"win":   f"\\\\{host}\\{share}\\",
+						"macos": "/",
+						"linux": "/",
+					}
+				else:
+					# Generic SMB / network share
+					safeShare = share or "share"
+					prefix = {
+						"win":   f"\\\\{host}\\{share}\\",
+						"macos": f"/Volumes/{safeShare}",
+						"linux": f"/mnt/{safeShare.lower().replace(' ', '_')}",
+					}
+			else:
+				# Regular drive letter
+				letter = drive[0] if drive else "C"
+				prefix = {
+					"win":   f"{letter}:\\",
+					"macos": f"/Volumes/{letter}",
+					"linux": f"/mnt/{letter.lower()}",
+				}
+		
 		elif currentPlatform == "macos":
-			if dirPath.parts[1] == "Volumes":
+			if len(dirPath.parts) > 2 and dirPath.parts[1] == "Volumes":
 				driveName = dirPath.parts[2]
 				dirParts = list(dirPath.parts[3:])
+				prefix = {
+					"win":   f"{driveName[0].upper()}:\\",
+					"macos": f"/Volumes/{driveName}",
+					"linux": f"/mnt/{driveName.lower().replace(' ', '_')}",
+				}
 			else:
-				driveName = "Macintosh HD"
 				dirParts = list(dirPath.parts[1:])
-			
-			prefix = {
-				"win": f"{driveName[0].upper()}:\\",
-				"macos": f"/Volumes/{driveName}",
-				"linux": f"/mnt/{driveName.lower().replace(' ', '_')}"
-			}
+				prefix = {
+					"win":   "C:\\",
+					"macos": "/Volumes/Macintosh HD",
+					"linux": "/",
+				}
+		
 		else:  # linux
-			if dirPath.parts[1] == "mnt":
+			if len(dirPath.parts) > 2 and dirPath.parts[1] == "mnt":
 				driveName = dirPath.parts[2]
 				dirParts = list(dirPath.parts[3:])
+				prefix = {
+					"win":   f"{driveName[0].upper()}:\\",
+					"macos": f"/Volumes/{driveName}",
+					"linux": f"/mnt/{driveName}",
+				}
 			else:
-				driveName = "root"
 				dirParts = list(dirPath.parts[1:])
-			
-			prefix = {
-				"win": f"{driveName[0].upper()}:\\",
-				"macos": f"/Volumes/{driveName}",
-				"linux": f"/mnt/{driveName}"
-			}
+				prefix = {
+					"win":   "C:\\",
+					"macos": "/Volumes/Macintosh HD",
+					"linux": "/",
+				}
+	
 	else:
 		dirParts = list(dirPath.parts)
 		if dirParts and dirParts[0] == ".":
 			dirParts = dirParts[1:]
-		
-		prefix = {
-			"win": ".",
-			"macos": ".",
-			"linux": "."
-		}
+		prefix = {"win": ".", "macos": ".", "linux": "."}
 	
 	return {
 		"prefix": prefix,
 		"dir": dirParts,
-		"name": name
+		"name": name,
 	}
 
 def jsonToPath(pathJson: dict) -> Path:
