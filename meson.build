@@ -1,7 +1,7 @@
 project(
   'frxx',
   'cpp',
-  version: '0.1.5.2',
+  version: '0.1.5.3',
   license: 'LGPL-3.0-or-later',
   meson_version: '>=1.1.0',
   default_options: ['cpp_std=c++17'],
