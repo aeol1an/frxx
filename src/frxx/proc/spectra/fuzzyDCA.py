@@ -67,6 +67,28 @@ def addFields(s: spectra, pts: int = 9, filterStrength: float = 8.0, delayed = T
 		"add_offset": np.float32(0.0)
 	}
 
+	# PSDHF can contain -inf, or finite values below the range representable by
+	# its packed int16 encoding. Letting those values reach the NetCDF encoder
+	# can wrap them into large positive powers that dominate the DCA centroid.
+	# Reserve the lowest int16 code for the fill value and store every value that
+	# cannot be represented safely as NaN, which CF encoding maps to that fill.
+	packedMin = np.float32(
+		(np.iinfo(np.int16).min + 1) * encoding["scale_factor"] +
+		encoding["add_offset"]
+	)
+	packedMax = np.float32(
+		np.iinfo(np.int16).max * encoding["scale_factor"] +
+		encoding["add_offset"]
+	)
+	PSDHF = [
+		da.where(
+			da.isfinite(ray) & (ray >= packedMin) & (ray <= packedMax),
+			ray,
+			np.float32(np.nan),
+		)
+		for ray in PSDHF
+	]
+
 	s.addDataField('sZDRv', sZDRv, encoding=encoding,
 		attrs={
 			"long_name": "spectral_differential_reflectivity_variance",

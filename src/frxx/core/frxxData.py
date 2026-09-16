@@ -19,7 +19,12 @@ if TYPE_CHECKING:
 
 _FILL_VALUES = {
 	"int8": None,
-	"int16": None,
+	# int16 is used for packed floating-point science fields. Its encodings use
+	# float32 scale/offset values, so CF decoding preserves float32 rather than
+	# promoting the expanded data to float64.
+	"int16": np.int16(np.iinfo(np.int16).min),
+	# Keep unscaled structural integers (indices, lengths, and boundaries) free
+	# of fill values so xarray does not promote them to floating-point arrays.
 	"int32": None,
 	"int64": None,
 	"float32": np.float32(np.nan),

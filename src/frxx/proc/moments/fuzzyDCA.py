@@ -42,7 +42,11 @@ def _processRays(PSDHF, PSDH, VEL, va, flipVel):
 
 
 def addFields(m: moments, s: spectra, delayed=False) -> None:
-	DCAVEL, DCAVDIFF = _processRays(s.PSDHF, s.PSDH, m.m_VEL, m.va[0], m.phaseReversed)
+	# The correction hypothesis test uses missing PSDH bins as evidence, so pass
+	# the spectrum with its stored validity mask applied.
+	DCAVEL, DCAVDIFF = _processRays(
+		s.PSDHF, s.m_PSDH, m.m_VEL, m.va[0], m.phaseReversed
+	)
 	#DCAVEL, DCAVDIFF = _processRaysP(ListType(s.PSDHF), ListType(s.PSDH), m.VEL, m.va[0], m.phaseReversed)
 
 	# print("DCAVDIFF NaNs match VEL mask?", np.array_equal(np.isnan(DCAVDIFF), m.mask))
