@@ -29,6 +29,7 @@ def plotRangeDoppler(
     aspectRatioWH: float = np.sqrt(2),
     cmap: Union[str, Colormap] = 'pyart_Carbone42',
     clims: Tuple[Number, Number, int] | None = None,
+    colorbarOutside: bool = False,
     backend: bool = True
 ):
     if not (clims is None):
@@ -57,7 +58,8 @@ def plotRangeDoppler(
         
     axFrac = 0.75
     start = (1-axFrac)/2
-    ax = fig.add_axes((start, start, axFrac, start+axFrac))
+    axWidth = 0.635 if colorbarOutside else axFrac
+    ax = fig.add_axes((start, start, axWidth, start+axFrac))
 
     plot = ax.pcolormesh(
         velMS, rangesKM, data, 
@@ -68,10 +70,11 @@ def plotRangeDoppler(
     ax.set_ylabel('Range (km)', size=4*lm, labelpad=0)
     ax.tick_params(axis='both', labelsize=4*lm, length=2, direction='in', pad=1)
     
-    xl, xr = ax.get_xlim()
-    cbarBuffer = 0.125
-    xr += (xr-xl)*cbarBuffer
-    ax.set_xlim((xl, xr))
+    if not colorbarOutside:
+        xl, xr = ax.get_xlim()
+        cbarBuffer = 0.125
+        xr += (xr-xl)*cbarBuffer
+        ax.set_xlim((xl, xr))
 
     ax2 = ax.twinx()
     rTicks = np.array(ax.get_yticks(), dtype=np.float64)
@@ -107,7 +110,10 @@ def plotRangeDoppler(
     
     textBorderWidth = 0.5*lm
     
-    cbarAx = ax.inset_axes(bounds=(0.875, 0.075, 0.1, 0.85))
+    if colorbarOutside:
+        cbarAx = fig.add_axes((0.90, 0.19, 0.075, 0.74))
+    else:
+        cbarAx = ax.inset_axes(bounds=(0.875, 0.075, 0.1, 0.85))
     cb = fig.colorbar(
         plot,
         cax = cbarAx,
