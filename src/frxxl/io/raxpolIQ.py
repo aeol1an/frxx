@@ -96,7 +96,7 @@ class raxpolrkc(rkcfile):
         outDir = casePath/"out"/("s"+str(azimuthBeamWidthDeg)+"o"+str(beamOverlapDeg))
         if not outDir.exists():
             raise FileNotFoundError(f"Directory {outDir} does not exist.")
-        cfFilenames = sorted(Path(outDir).iterdir(), key=lambda x: x.name)
+        cfFilenames = sorted(list(Path(outDir).glob("cfrad.*.nc")), key=lambda x: x.name)
         if fileNo >= len(cfFilenames) or fileNo < 0:
             raise IndexError(f"Only {len(cfFilenames)} files in this case. "
                              f"Choose a fileNo between 0 and {len(cfFilenames)-1}.")
