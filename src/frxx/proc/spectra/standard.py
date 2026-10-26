@@ -264,6 +264,6 @@ def calculatePPIDPSD(
 	)
 
 	if not delayed:
-		s.ds.load()
+		s.load()
 
 	return s
