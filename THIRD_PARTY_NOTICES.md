@@ -23,3 +23,17 @@ Eigen has not been modified except for being copied into this source tree.
 - License text: `LICENSES/pocketfft/LICENSE.md`
 
 The original copyright and license notice is retained in `pocketfft.hpp`.
+
+## sdft
+
+- Project: jurihock/sdft
+- Source: https://github.com/jurihock/sdft/blob/main/cpp/src/sdft/sdft.h
+- Location: `src/include/frxx/utils/sdft.hpp`
+- License: MIT
+- License text: `LICENSES/sdft/LICENSE`
+
+Adapted for Eigen arrays, complex IQ input, full unnormalized rectangular spectra,
+FFT initialization from a complete sample block,
+periodic phase lookup, and compensated sums.
+The upstream inverse synthesis API is not included. The original copyright
+and attribution are retained in the header.

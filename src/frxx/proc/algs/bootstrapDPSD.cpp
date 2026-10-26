@@ -22,7 +22,7 @@ py::tuple computeSingleSpectrum_py(
     py::array w,
     i64 M,
     i64 NFT,
-    double B,
+    i64 B,
     double r
 ) {
     auto typed_VH = frxx::pybind::require_c_array<std::complex<float>, 1>(
@@ -54,7 +54,7 @@ py::tuple computeMultipleSpectra_py(
     i64 NK,
     i64 M,
     i64 NFT,
-    double B,
+    i64 B,
     double r
 ) {
     auto typed_VH = frxx::pybind::require_c_array<std::complex<float>, 2>(
@@ -82,8 +82,8 @@ py::tuple computeMultipleSpectra_py(
 py::tuple processRay_S_py(
     py::array iqh,
     py::array iqv,
-    py::array window,
-    double nBootstraps,
+    i64 window,
+    i64 nBootstraps,
     i64 K,
     i64 NFT
 ) {
@@ -91,17 +91,14 @@ py::tuple processRay_S_py(
         iqh, "iqh", " must have dtype complex64");
     auto typed_iqv = frxx::pybind::require_c_array<std::complex<float>, 2>(
         iqv, "iqv", " must have dtype complex64");
-    auto typed_window = frxx::pybind::require_c_array<double, 1>(
-        window, "window", " must have dtype float64");
     auto eigen_iqh = frxx::pybind::map_const_matrix(typed_iqh);
     auto eigen_iqv = frxx::pybind::map_const_matrix(typed_iqv);
-    auto eigen_window = frxx::pybind::map_const_vector(typed_window);
 
     native::ProcessRayResult result;
     {
         py::gil_scoped_release release;
         result = native::processRay_S(
-            eigen_iqh, eigen_iqv, eigen_window, nBootstraps, K, NFT);
+            eigen_iqh, eigen_iqv, window, nBootstraps, K, NFT);
     }
     return py::make_tuple(
         py::cast(std::move(result.PSDH)),

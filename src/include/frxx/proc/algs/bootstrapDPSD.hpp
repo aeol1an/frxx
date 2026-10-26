@@ -28,15 +28,15 @@ struct ProcessRayResult {
 
 /// Compute one dual-polarization bootstrap spectrum.
 ///
-/// `nBootstraps == 0` or positive infinity evaluates every valid bootstrap
-/// start exactly once. A finite positive value samples starts with replacement.
+/// `nBootstraps == 0` evaluates every valid bootstrap start exactly once.
+/// A positive integer samples starts with replacement.
 SingleSpectrumResult computeSingleSpectrum(
     frxx::eigen::ConstArray1DRef<std::complex<float>> VH,
     frxx::eigen::ConstArray1DRef<std::complex<float>> VV,
     frxx::eigen::ConstArray1DRef<double> w,
     frxx::utils::i64 M,
     frxx::utils::i64 NFT,
-    double nBootstraps,
+    frxx::utils::i64 nBootstraps,
     double r);
 
 /// Compute a bootstrap spectrum for every row of VH and VV.
@@ -47,15 +47,18 @@ MultipleSpectraResult computeMultipleSpectra(
     frxx::utils::i64 NK,
     frxx::utils::i64 M,
     frxx::utils::i64 NFT,
-    double nBootstraps,
+    frxx::utils::i64 nBootstraps,
     double r);
 
 /// Calculate PSDH, PSDV, spectral ZDR, and spectral RHOHV for one ray.
+/// Window IDs: 0 rectangular, 1 Hann, 2 Hamming, 3 Blackman, 4 Blackman-Nuttall.
+/// With nBootstraps == 0 and NFT equal to the pulse count (including its default),
+/// use SDFT to evaluate all starts. Other cases use the FFT bootstrap path.
 ProcessRayResult processRay_S(
     frxx::eigen::ConstArray2DRef<std::complex<float>> iqh,
     frxx::eigen::ConstArray2DRef<std::complex<float>> iqv,
-    frxx::eigen::ConstArray1DRef<double> window,
-    double nBootstraps,
+    frxx::utils::i64 window,
+    frxx::utils::i64 nBootstraps,
     frxx::utils::i64 K = 1,
     frxx::utils::i64 NFT = 1);
 

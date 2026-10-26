@@ -21,7 +21,21 @@ PYBIND11_MODULE(_windows, module) {
     module.def("blackman", [](i64 size) {
         return py::cast(frxx::utils::blackman(size));
     }, py::arg("N"));
-    module.def("bartlett", [](i64 size) {
-        return py::cast(frxx::utils::bartlett(size));
-    }, py::arg("N"));
+    module.def("blackman_nuttall", &frxx::utils::blackman_nuttall,
+        py::arg("N"), "Return a periodic Blackman-Nuttall (Nuttall4c) window.");
+    module.def("rectangular_sdft_coefficients",
+        &frxx::utils::rectangular_sdft_coefficients,
+        "Return [1], the rectangular M-point DFT window kernel.");
+    module.def("hanning_sdft_coefficients",
+        &frxx::utils::hanning_sdft_coefficients,
+        "Return [-0.25, 0.5, -0.25] at offsets -1, 0, +1 (NFT=M).");
+    module.def("hamming_sdft_coefficients",
+        &frxx::utils::hamming_sdft_coefficients,
+        "Return [-0.23, 0.54, -0.23] at offsets -1, 0, +1 (NFT=M).");
+    module.def("blackman_sdft_coefficients",
+        &frxx::utils::blackman_sdft_coefficients,
+        "Return [0.04, -0.25, 0.42, -0.25, 0.04] at offsets -2..+2 (NFT=M).");
+    module.def("blackman_nuttall_sdft_coefficients",
+        &frxx::utils::blackman_nuttall_sdft_coefficients,
+        "Return the seven-tap periodic Blackman-Nuttall kernel at offsets -3..+3 (NFT=M).");
 }

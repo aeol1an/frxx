@@ -9,11 +9,11 @@ from typing import Tuple, cast
 from numpy.typing import NDArray
 
 import numpy as np
-from ...utils import windows as wn
 
 import dask as d
 import dask.array as da
 
+import operator
 import warnings
 
 import threading
@@ -28,7 +28,7 @@ def _processRay(
 	noisehDB, noisevDB,
 	SNRHThreshold, SNRVThreshold
 ):
-	iqhs, _, nSAZ = algs.res.subsetIQcpp(
+	iqhs, _, _ = algs.res.subsetIQcpp(
 		iqh, az, naz, azIncreasing, 
 		pulseBoundaries, iranges, swathPulses, 
 		K, KOffset, avgStrat, False
@@ -39,20 +39,7 @@ def _processRay(
 		K, KOffset, avgStrat, False
 	)
 
-	if window == 0:
-		wValues = wn.rectangular(nSAZ)
-	elif window == 1:
-		wValues = wn.hanning(nSAZ)
-	elif window == 2:
-		wValues = wn.hamming(nSAZ)
-	elif window == 3:
-		wValues = wn.blackman(nSAZ)
-	elif window == 4:
-		wValues = wn.bartlett(nSAZ)
-	else:
-		raise ValueError("Bad window selection.")
-
-	h, v, d, r = algs.bootstrapDPSD.processRay_S(iqhs, iqvs, wValues, nBootstraps, K, NFT)
+	h, v, d, r = algs.bootstrapDPSD.processRay_S(iqhs, iqvs, window, nBootstraps, K, NFT)
 
 	m = ((h-noisehDB) > SNRHThreshold) & \
 		((v-noisevDB) > SNRVThreshold) & \
@@ -141,8 +128,9 @@ def calculatePPIDPSD(
 		if beamOverlapDeg is not None:
 			warnings.warn("Overriding beamOverlapDeg: using pulse grouping from passed moments.")
 
-	if nBootstraps < 1:
-		raise ValueError("nBootstraps must be greater than 1, and the larger, the better.")
+	nBootstraps = operator.index(nBootstraps)
+	if nBootstraps != 0 and nBootstraps < 2:
+		raise ValueError("nBootstraps must be 0 or an integer greater than or equal to 2")
 
 	if swathPulses is not None and swathPulses < 2:
 		raise ValueError("swathPulses must be greater than 2.")
@@ -162,7 +150,7 @@ def calculatePPIDPSD(
 		w = 2
 	elif window == "blackman":
 		w = 3
-	elif window == "bartlett":
+	elif window == "blackman_nuttall":
 		w = 4
 	else:
 		raise ValueError("Unsupported Window.")

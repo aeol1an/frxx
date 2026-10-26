@@ -14,6 +14,7 @@ license-files = [
     "THIRD_PARTY_NOTICES.md",
     "LICENSES/Eigen/*",
     "LICENSES/pocketfft/*",
+    "LICENSES/sdft/*",
 ]
 authors = [
   { name="Ameya Naik" },

@@ -8,6 +8,7 @@ import dask as d
 import dask.array as da
 
 import json
+import operator
 
 from .frxxData import _FILL_VALUES, frxxData
 from ..utils import stringUtils as su
@@ -79,8 +80,10 @@ class spectra(frxxData):
 				raise TypeError("avgStrat must be a tuple of two ints")
 			if avgStrat[0] < 1 or avgStrat[1] < 1:
 				raise ValueError("Both values of avgStrat must be one or greater")
-		if (bootstrap is not None) and bootstrap < 2:
-			raise ValueError("Bootstrap must be minimum 2 or None.")
+		if bootstrap is not None:
+			bootstrap = operator.index(bootstrap)
+			if bootstrap != 0 and bootstrap < 2:
+				raise ValueError("Bootstrap must be None, 0, or an integer greater than or equal to 2.")
 		
 		self.ds.attrs["fourier_spec"] = su.constructFourierSpec(pulsesIn, nFFTOut, avgStrat, bootstrap)
 		self.requiredBools["fourier_spec"] = True
